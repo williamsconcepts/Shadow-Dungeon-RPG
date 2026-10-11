@@ -158,14 +158,35 @@ class UIManager {
       });
     }
 
-    // Attack / Interact button
+    // Attack / Interact button (Supports single-tap and hold-to-autocombat)
     if (this.btnAttack) {
-      const triggerAttack = (e) => {
-        e.preventDefault();
+      let attackHoldInterval = null;
+      const startAttack = (e) => {
+        if (e) e.preventDefault();
         this.game.checkInteractOrAttack();
+        if (!attackHoldInterval) {
+          attackHoldInterval = setInterval(() => {
+            if (this.game.state === 'PLAYING') {
+              this.game.checkInteractOrAttack();
+            } else {
+              clearInterval(attackHoldInterval);
+              attackHoldInterval = null;
+            }
+          }, 180);
+        }
       };
-      this.btnAttack.addEventListener('touchstart', triggerAttack, { passive: false });
-      this.btnAttack.addEventListener('mousedown', triggerAttack);
+      const stopAttack = () => {
+        if (attackHoldInterval) {
+          clearInterval(attackHoldInterval);
+          attackHoldInterval = null;
+        }
+      };
+
+      this.btnAttack.addEventListener('touchstart', startAttack, { passive: false });
+      this.btnAttack.addEventListener('touchend', stopAttack, { passive: false });
+      this.btnAttack.addEventListener('touchcancel', stopAttack, { passive: false });
+      this.btnAttack.addEventListener('mousedown', startAttack);
+      window.addEventListener('mouseup', stopAttack);
     }
 
     // Dash

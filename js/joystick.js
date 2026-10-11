@@ -1,20 +1,28 @@
-// Virtual Joystick Controller for Touch & Mouse input
-// Responsive 360-degree analog control
+// Virtual Joystick Controller for Mobile Touch & Desktop Mouse Drag
+// 360-degree analog control with dynamic floating & fixed touch support
 
 class VirtualJoystick {
   constructor(containerEl, options = {}) {
     this.container = containerEl;
-    this.maxRadius = options.maxRadius || 50;
-    this.deadzone = options.deadzone || 0.12;
+    this.maxRadius = options.maxRadius || 48;
+    this.deadzone = options.deadzone || 0.08;
+    this.allowLeftScreenTouch = options.allowLeftScreenTouch !== false;
 
     // Output vector
     this.vector = { x: 0, y: 0, magnitude: 0, angle: 0, active: false };
 
+    // Direct property mirrors for maximum compatibility
+    this.active = false;
+    this.x = 0;
+    this.y = 0;
+    this.angle = 0;
+    this.magnitude = 0;
+
     // Internal state
     this.touchId = null;
     this.origin = { x: 0, y: 0 };
-    this.current = { x: 0, y: 0 };
     this.isMouseDown = false;
+    this.isFloating = false;
 
     // DOM Elements
     this.baseEl = null;
@@ -23,6 +31,9 @@ class VirtualJoystick {
     this.createElements();
     this.bindEvents();
   }
+
+  // Getters for vector fields
+  get getVector() { return this.vector; }
 
   createElements() {
     this.baseEl = document.createElement('div');
@@ -36,44 +47,112 @@ class VirtualJoystick {
   }
 
   bindEvents() {
-    // Touch events on the container or base
-    this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+    // 1. Direct container touch events
+    this.container.addEventListener('touchstart', (e) => this.handleContainerTouchStart(e), { passive: false });
+    
+    // 2. Global window touch events for tracking & left-half screen floating joystick
+    window.addEventListener('touchstart', (e) => this.handleGlobalTouchStart(e), { passive: false });
     window.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
     window.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
     window.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
 
-    // Mouse fallback for testing or mouse drag on desktop
+    // 3. Mouse events for desktop drag testing
+    this.container.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     this.baseEl.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
   }
 
-  handleTouchStart(e) {
-    if (this.vector.active) return;
+  unlockAudio() {
+    if (window.soundEngine && !window.soundEngine.isInitialized) {
+      window.soundEngine.init();
+      window.soundEngine.resume();
+    }
+  }
+
+  handleContainerTouchStart(e) {
+    if (this.active) return;
+    this.unlockAudio();
+
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      const rect = this.container.getBoundingClientRect();
-      // Only process touches on the left control area
-      if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-          touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-        e.preventDefault();
-        this.touchId = touch.identifier;
-        this.vector.active = true;
+      e.preventDefault();
+      this.startTracking(touch.identifier, touch.clientX, touch.clientY, false);
+      break;
+    }
+  }
 
-        const baseRect = this.baseEl.getBoundingClientRect();
-        this.origin = {
-          x: baseRect.left + baseRect.width / 2,
-          y: baseRect.top + baseRect.height / 2
-        };
-        this.updatePosition(touch.clientX, touch.clientY);
-        this.baseEl.classList.add('active');
+  handleGlobalTouchStart(e) {
+    if (this.active) return;
+
+    // Only activate if game is actively playing and mobile controls are visible
+    const mobileControls = document.getElementById('mobile-controls');
+    if (!mobileControls || mobileControls.classList.contains('hidden')) return;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+
+      // Ignore touches on UI buttons, hotbar, modals, or headers
+      const target = touch.target;
+      if (target && (target.closest('button') || target.closest('.modal-backdrop') || target.closest('.hud-top-left') || target.closest('.hud-top-right'))) {
+        continue;
+      }
+
+      // Check if touch is on the left movement side of the screen (left 46% of width, below top 70px)
+      const isLeftScreen = touch.clientX <= window.innerWidth * 0.46 && touch.clientY >= 70;
+      if (isLeftScreen) {
+        e.preventDefault();
+        this.unlockAudio();
+
+        // Reposition base dynamically under player's thumb
+        const contRect = this.container.getBoundingClientRect();
+        const isInsideContainer = (
+          touch.clientX >= contRect.left && touch.clientX <= contRect.right &&
+          touch.clientY >= contRect.top && touch.clientY <= contRect.bottom
+        );
+
+        this.startTracking(touch.identifier, touch.clientX, touch.clientY, !isInsideContainer);
         break;
       }
     }
   }
 
+  startTracking(touchId, clientX, clientY, isFloating) {
+    this.touchId = touchId;
+    this.active = true;
+    this.vector.active = true;
+    this.isFloating = isFloating;
+
+    if (isFloating) {
+      // Position base directly at the touch point
+      this.baseEl.style.position = 'fixed';
+      this.baseEl.style.left = `${clientX}px`;
+      this.baseEl.style.top = `${clientY}px`;
+      this.baseEl.style.transform = 'translate(-50%, -50%)';
+      this.origin = { x: clientX, y: clientY };
+    } else {
+      // Anchored to resting container
+      this.baseEl.style.position = '';
+      this.baseEl.style.left = '';
+      this.baseEl.style.top = '';
+      this.baseEl.style.transform = '';
+      const baseRect = this.baseEl.getBoundingClientRect();
+      this.origin = {
+        x: baseRect.left + baseRect.width / 2,
+        y: baseRect.top + baseRect.height / 2
+      };
+    }
+
+    this.baseEl.classList.add('active');
+    this.updatePosition(clientX, clientY);
+
+    if (navigator.vibrate) {
+      try { navigator.vibrate(6); } catch (err) {}
+    }
+  }
+
   handleTouchMove(e) {
-    if (!this.vector.active) return;
+    if (!this.active || this.touchId === null) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (touch.identifier === this.touchId) {
@@ -85,7 +164,7 @@ class VirtualJoystick {
   }
 
   handleTouchEnd(e) {
-    if (!this.vector.active) return;
+    if (!this.active || this.touchId === null) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (touch.identifier === this.touchId) {
@@ -97,19 +176,24 @@ class VirtualJoystick {
 
   handleMouseDown(e) {
     if (e.button !== 0) return;
+    this.unlockAudio();
     this.isMouseDown = true;
+    this.active = true;
     this.vector.active = true;
+    this.isFloating = false;
+
     const baseRect = this.baseEl.getBoundingClientRect();
     this.origin = {
       x: baseRect.left + baseRect.width / 2,
       y: baseRect.top + baseRect.height / 2
     };
-    this.updatePosition(e.clientX, e.clientY);
+
     this.baseEl.classList.add('active');
+    this.updatePosition(e.clientX, e.clientY);
   }
 
   handleMouseMove(e) {
-    if (!this.isMouseDown) return;
+    if (!this.isMouseDown || !this.active) return;
     this.updatePosition(e.clientX, e.clientY);
   }
 
@@ -133,7 +217,10 @@ class VirtualJoystick {
       this.vector.x = 0;
       this.vector.y = 0;
       this.vector.magnitude = 0;
-      this.knobEl.style.transform = `translate(0px, 0px)`;
+      this.x = 0;
+      this.y = 0;
+      this.magnitude = 0;
+      this.knobEl.style.transform = 'translate(0px, 0px)';
       return;
     }
 
@@ -143,7 +230,13 @@ class VirtualJoystick {
     this.vector.x = Math.cos(angle) * effectiveMagnitude;
     this.vector.y = Math.sin(angle) * effectiveMagnitude;
 
-    // Visual knob offset
+    // Direct property mirrors
+    this.magnitude = effectiveMagnitude;
+    this.angle = angle;
+    this.x = this.vector.x;
+    this.y = this.vector.y;
+
+    // Knob visual offset
     const knobX = Math.cos(angle) * clampedDist;
     const knobY = Math.sin(angle) * clampedDist;
     this.knobEl.style.transform = `translate(${knobX}px, ${knobY}px)`;
@@ -151,16 +244,32 @@ class VirtualJoystick {
 
   reset() {
     this.touchId = null;
+    this.isMouseDown = false;
+    this.active = false;
     this.vector.active = false;
     this.vector.x = 0;
     this.vector.y = 0;
     this.vector.magnitude = 0;
     this.vector.angle = 0;
+
+    this.x = 0;
+    this.y = 0;
+    this.magnitude = 0;
+    this.angle = 0;
+
     if (this.baseEl) {
       this.baseEl.classList.remove('active');
+      if (this.isFloating) {
+        this.baseEl.style.position = '';
+        this.baseEl.style.left = '';
+        this.baseEl.style.top = '';
+        this.baseEl.style.transform = '';
+        this.isFloating = false;
+      }
     }
+
     if (this.knobEl) {
-      this.knobEl.style.transform = `translate(0px, 0px)`;
+      this.knobEl.style.transform = 'translate(0px, 0px)';
     }
   }
 }

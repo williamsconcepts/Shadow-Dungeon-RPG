@@ -170,8 +170,8 @@ class Dungeon {
         });
       }
 
-      // Spike traps (35% chance in room)
-      if (!isShopRoom && Math.random() < 0.35 && i !== 0 && i !== this.rooms.length - 1) {
+      // Spike traps (50% chance in room)
+      if (!isShopRoom && Math.random() < 0.50 && i !== 0 && i !== this.rooms.length - 1) {
         this.traps.push({
           x: (r.cx + 0.5) * this.tileSize,
           y: (r.cy + 0.5) * this.tileSize,
@@ -196,6 +196,18 @@ class Dungeon {
           }
         }
       }
+    }
+
+    // Ensure at least 1 spike trap exists on standard dungeon floor
+    if (this.traps.length === 0 && this.rooms.length > 2) {
+      const tr = this.rooms[1];
+      this.traps.push({
+        x: (tr.cx + 0.5) * this.tileSize,
+        y: (tr.cy + 0.5) * this.tileSize,
+        size: 34,
+        state: 'IDLE',
+        timer: 1.5
+      });
     }
   }
 

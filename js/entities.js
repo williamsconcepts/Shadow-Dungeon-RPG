@@ -568,9 +568,11 @@ class Player {
     if (input.keys['KeyD'] || input.keys['ArrowRight']) mx += 1;
 
     // Virtual Joystick pad integration
-    if (input.joystick && input.joystick.active) {
-      mx += input.joystick.x;
-      my += input.joystick.y;
+    if (input.joystick && (input.joystick.active || (input.joystick.vector && input.joystick.vector.active))) {
+      const jx = input.joystick.x !== undefined ? input.joystick.x : input.joystick.vector.x;
+      const jy = input.joystick.y !== undefined ? input.joystick.y : input.joystick.vector.y;
+      mx += jx;
+      my += jy;
     }
 
     // Xbox Controller Left Analog Stick & D-Pad
@@ -608,8 +610,10 @@ class Player {
       this.angle = input.gamepad.rightStick.angle;
     } else if (input.gamepad && input.gamepad.leftStick.active && dist > 0.12) {
       this.angle = input.gamepad.leftStick.angle;
-    } else if (input.isTouchMode && input.joystick && input.joystick.active) {
-      this.angle = input.joystick.angle;
+    } else if (input.joystick && (input.joystick.active || (input.joystick.vector && input.joystick.vector.active))) {
+      this.angle = input.joystick.angle !== undefined ? input.joystick.angle : input.joystick.vector.angle;
+    } else if (dist > 0.12) {
+      this.angle = Math.atan2(my, mx);
     } else if (input.mouseWorld) {
       this.angle = Math.atan2(input.mouseWorld.y - this.y, input.mouseWorld.x - this.x);
     }

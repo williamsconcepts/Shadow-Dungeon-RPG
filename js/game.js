@@ -120,6 +120,8 @@ class Game {
     };
 
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) resize(); });
     resize();
   }
 
@@ -127,8 +129,9 @@ class Game {
     const joystickArea = document.getElementById('joystick-container');
     if (joystickArea && window.VirtualJoystick) {
       this.input.joystick = new window.VirtualJoystick(joystickArea, {
-        maxRadius: 48,
-        deadzone: 0.1
+        maxRadius: 46,
+        deadzone: 0.08,
+        allowLeftScreenTouch: true
       });
     }
   }
@@ -186,6 +189,28 @@ class Game {
         this.checkInteractOrAttack();
       }
     });
+
+    // Mobile Canvas Touch Aiming (Right half touches update world aim)
+    const handleCanvasTouch = (e) => {
+      this.input.isTouchMode = true;
+      if (window.soundEngine && !window.soundEngine.isInitialized) {
+        window.soundEngine.init();
+      }
+      if (e.touches && e.touches.length > 0) {
+        for (let i = 0; i < e.touches.length; i++) {
+          const t = e.touches[i];
+          if (t.clientX > window.innerWidth * 0.44) {
+            this.input.mouseScreen.x = t.clientX;
+            this.input.mouseScreen.y = t.clientY;
+            this.input.mouseWorld.x = t.clientX + this.camera.x;
+            this.input.mouseWorld.y = t.clientY + this.camera.y;
+            break;
+          }
+        }
+      }
+    };
+    this.canvas.addEventListener('touchstart', handleCanvasTouch, { passive: true });
+    this.canvas.addEventListener('touchmove', handleCanvasTouch, { passive: true });
 
     // Touch detection
     window.addEventListener('touchstart', () => {
