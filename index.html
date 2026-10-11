@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Shadow Dungeon RPG — Abyss Ascent</title>
+  <meta name="description" content="An immersive top-down browser dungeon crawler RPG with real-time combat, spells, procedural floors, loot progression, and persistent localStorage meta-progression.">
+  <meta name="keywords" content="browser game, rpg, dungeon crawler, joystick, action rpg, web audio, javascript game, roguelite, localstorage">
+
+  <!-- Google Fonts: Cinzel & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Main Game Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Start / Title Screen -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="title-card glass-panel">
+      <div class="game-badge">ACTION ROGUELITE RPG</div>
+      <h1 class="main-title">SHADOW DUNGEON</h1>
+      <p class="subtitle">Descend into the Abyssal depths, slay demonic horrors, and harvest Soul Shards for eternal power.</p>
+
+      <!-- Hero Class & Archetype Selection -->
+      <div class="class-selection-container">
+        <div class="class-selection-title">CHOOSE YOUR HERO ARCHETYPE</div>
+        <div class="class-cards-grid">
+          <div class="class-card active" data-class="WARRIOR">
+            <div class="class-header">
+              <span class="class-icon">🛡️</span>
+              <div>
+                <div class="class-name">Shadow Knight</div>
+                <div class="class-role">Melee Juggernaut</div>
+              </div>
+            </div>
+            <div class="class-stats-row">
+              <span class="stat-tag hp">HP: 380</span>
+              <span class="stat-tag atk">ATK: 18</span>
+              <span class="stat-tag def">DEF: 14</span>
+            </div>
+            <div class="class-skills-preview">
+              <span title="Bull Rush">🐂 Dash</span>
+              <span title="Whirlwind Blade">🌪️ Whirlwind</span>
+              <span title="Seismic Stomp">💥 Stomp</span>
+              <span title="Battle Roar">🦁 Roar</span>
+            </div>
+          </div>
+
+          <div class="class-card" data-class="MAGE">
+            <div class="class-header">
+              <span class="class-icon">🔮</span>
+              <div>
+                <div class="class-name">Void Sorcerer</div>
+                <div class="class-role">Arcane Spellcaster</div>
+              </div>
+            </div>
+            <div class="class-stats-row">
+              <span class="stat-tag hp">HP: 240</span>
+              <span class="stat-tag mp">MP: 180</span>
+              <span class="stat-tag mag">MAGIC: 24</span>
+            </div>
+            <div class="class-skills-preview">
+              <span title="Arcane Blink">✨ Blink</span>
+              <span title="Hellfire Orb">🔥 Hellfire</span>
+              <span title="Frost Nova">❄️ Nova</span>
+              <span title="Cataclysm Thunder">⚡ Thunder</span>
+            </div>
+          </div>
+
+          <div class="class-card" data-class="ROGUE">
+            <div class="class-header">
+              <span class="class-icon">🗡️</span>
+              <div>
+                <div class="class-name">Abyssal Assassin</div>
+                <div class="class-role">Shadow Stalker</div>
+              </div>
+            </div>
+            <div class="class-stats-row">
+              <span class="stat-tag hp">HP: 270</span>
+              <span class="stat-tag spd">SPD: 220</span>
+              <span class="stat-tag crit">CRIT: 20%</span>
+            </div>
+            <div class="class-skills-preview">
+              <span title="Shadow Step">💨 Step</span>
+              <span title="Poison Daggers">🗡️ Daggers</span>
+              <span title="Smoke Bomb">🌫️ Smoke</span>
+              <span title="Shadow Assassination">💀 Assassinate</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Run Preview Card (Shown if a run is in progress) -->
+      <div id="active-run-preview" class="active-run-card hidden">
+        <div class="run-card-header">
+          <span class="pulse-dot"></span>
+          <span class="run-card-title">EXPEDITION IN PROGRESS</span>
+        </div>
+        <div id="active-run-stats" class="run-card-details">
+          <!-- Injected by JS: Floor, Level, Gold, Gear -->
+        </div>
+      </div>
+
+      <div class="title-buttons-group">
+        <button id="btn-resume-game" class="btn-epic btn-resume hidden">
+          <span class="btn-sparkle">✦</span> RESUME EXPEDITION <span class="btn-sparkle">✦</span>
+        </button>
+        <button id="btn-start-game" class="btn-epic">
+          <span class="btn-sparkle">⚔</span> ENTER THE DUNGEON <span class="btn-sparkle">⚔</span>
+        </button>
+      </div>
+
+      <!-- Title Hub Menu Buttons -->
+      <div class="title-hub-row">
+        <button id="btn-open-sanctum" class="hub-btn hub-btn-sanctum" title="Permanent upgrades using harvested Soul Shards">
+          🔮 Soul Sanctum <span class="hub-badge">💎 <span id="title-shard-count">0</span></span>
+        </button>
+        <button id="btn-open-records" class="hub-btn" title="View lifetime stats and run history">
+          🏆 Hall of Records
+        </button>
+        <button id="btn-open-codex" class="hub-btn" title="View discovered monsters and relics">
+          📖 Abyss Codex
+        </button>
+        <button id="btn-open-settings" class="hub-btn" title="Audio, vibration, and screen settings">
+          ⚙️ Settings
+        </button>
+      </div>
+
+      <div class="controls-guide">
+        <div class="guide-column">
+          <h3>🎮 Xbox Console Pad</h3>
+          <ul>
+            <li><strong>Move / Aim:</strong> Left Stick (Move), Right Stick (Twin-Stick Aim)</li>
+            <li><strong>Attack / Interact:</strong> <span class="xbox-badge btn-a">A</span> or <span class="xbox-badge btn-rt">RT</span></li>
+            <li><strong>Spells:</strong> <span class="xbox-badge btn-b">B</span> Dash, <span class="xbox-badge btn-x">X</span> Fire, <span class="xbox-badge btn-y">Y</span> Frost, <span class="xbox-badge btn-rb">RB</span> Thunder</li>
+            <li><strong>Potions & Gear:</strong> <span class="xbox-badge btn-lb">LB</span> Heal, <span class="xbox-badge btn-lt">LT</span> Mana, <span class="xbox-badge btn-view">View</span> Bag</li>
+          </ul>
+        </div>
+        <div class="guide-column">
+          <h3>⌨️ Keyboard & Touch</h3>
+          <ul>
+            <li><strong>Movement:</strong> Virtual Joystick Pad or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
+            <li><strong>Attack:</strong> Tap Sword or <kbd>Space</kbd> / Left Click</li>
+            <li><strong>Spells:</strong> <kbd>Q</kbd> Dash, <kbd>1</kbd> Fireball, <kbd>2</kbd> Frost, <kbd>3</kbd> Thunder</li>
+            <li><strong>Bag & Drink:</strong> <kbd>I</kbd> Inventory, <kbd>4</kbd> Potion</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="audio-notice">🔊 Procedural Web Audio Synth • 💾 LocalStorage Auto-Saved</div>
+    </div>
+  </div>
+
+  <!-- In-Game HUD -->
+  <div id="hud" class="hud-layer hidden">
+    <!-- Top-Left: Player Stats Bar -->
+    <div class="hud-top-left glass-panel">
+      <div class="player-vital-row">
+        <div id="level-badge" class="badge-level">LVL 1</div>
+        <div class="bars-container">
+          <!-- HP Bar -->
+          <div class="bar-wrapper hp-wrapper">
+            <div id="hp-bar-fill" class="bar-fill hp-fill"></div>
+            <span id="hp-text" class="bar-label">300 / 300</span>
+          </div>
+          <!-- Mana Bar -->
+          <div class="bar-wrapper mana-wrapper">
+            <div id="mana-bar-fill" class="bar-fill mana-fill"></div>
+            <span id="mana-text" class="bar-label">120 / 120</span>
+          </div>
+        </div>
+      </div>
+      <!-- XP Bar -->
+      <div class="bar-wrapper xp-wrapper">
+        <div id="xp-bar-fill" class="bar-fill xp-fill"></div>
+      </div>
+    </div>
+
+    <!-- Top-Center: Boss Health Bar -->
+    <div id="boss-bar-container" class="hud-top-center hidden">
+      <div class="boss-frame glass-panel">
+        <div class="boss-header">
+          <span class="boss-skull">💀</span>
+          <span id="boss-name-text" class="boss-name">ABYSS OVERLORD</span>
+          <span class="boss-skull">💀</span>
+        </div>
+        <div class="bar-wrapper boss-bar-wrapper">
+          <div id="boss-bar-fill" class="bar-fill boss-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top-Right: Minimap, Gold & Depth -->
+    <div class="hud-top-right">
+      <div class="minimap-frame glass-panel">
+        <canvas id="minimap-canvas" width="130" height="130"></canvas>
+      </div>
+      <div class="info-badges">
+        <div id="gamepad-badge" class="badge-chip gamepad-chip">🎮 <span id="gamepad-badge-text">Xbox Pad</span></div>
+        <div id="depth-badge" class="badge-chip">Depth 1</div>
+        <div class="badge-chip shard-chip" title="Permanent Soul Shards">💎 <span id="shard-text">0</span></div>
+        <div class="badge-chip gold-chip">🪙 <span id="gold-text">0</span></div>
+        <button id="btn-inventory-toggle" class="btn-icon-chip" title="Inventory (I / View)">🎒<span class="xbox-badge btn-view-badge">View</span></button>
+        <button id="btn-hud-sanctum" class="btn-icon-chip" title="Soul Sanctum">🔮</button>
+        <button id="btn-audio-toggle" class="btn-icon-chip" title="Toggle Sound">🔊</button>
+        <button id="btn-save-exit" class="btn-icon-chip btn-save-chip" title="Save & Exit to Title">💾</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- On-Screen Virtual Controls (Joystick & Action Buttons) -->
+  <div id="mobile-controls" class="controls-layer hidden">
+    <!-- Virtual Joystick Zone (Bottom-Left) -->
+    <div id="joystick-container" class="joystick-zone">
+      <div class="joystick-hint">MOVE</div>
+    </div>
+
+    <!-- Action & Spell Buttons (Bottom-Right) -->
+    <div class="action-buttons-zone">
+      <!-- Top row: Spells -->
+      <div class="spells-row">
+        <button id="btn-potion-hp" class="btn-skill btn-potion" title="Health Potion (LB)">
+          <span class="skill-icon">❤️</span>
+          <span id="potion-hp-count" class="badge-count">5</span>
+          <span class="xbox-badge btn-lb">LB</span>
+        </button>
+        <button id="btn-potion-mp" class="btn-skill btn-potion" title="Mana Potion (LT)">
+          <span class="skill-icon">🧪</span>
+          <span id="potion-mp-count" class="badge-count">3</span>
+          <span class="xbox-badge btn-lt">LT</span>
+        </button>
+        <button id="btn-frost" class="btn-skill" title="Frost Nova (2 / Y)">
+          <span class="skill-icon">❄️</span>
+          <span class="cd-overlay"></span>
+          <span class="cd-text"></span>
+          <span class="key-hint">2</span>
+          <span class="xbox-badge btn-y">Y</span>
+        </button>
+        <button id="btn-thunder" class="btn-skill" title="Thunder Strike (3 / RB)">
+          <span class="skill-icon">⚡</span>
+          <span class="cd-overlay"></span>
+          <span class="cd-text"></span>
+          <span class="key-hint">3</span>
+          <span class="xbox-badge btn-rb">RB</span>
+        </button>
+      </div>
+
+      <!-- Bottom row: Dash, Fireball, Primary Attack -->
+      <div class="primary-row">
+        <button id="btn-dash" class="btn-skill" title="Shadow Dash (Q / B)">
+          <span class="skill-icon">💨</span>
+          <span class="cd-overlay"></span>
+          <span class="cd-text"></span>
+          <span class="key-hint">Q</span>
+          <span class="xbox-badge btn-b">B</span>
+        </button>
+        <button id="btn-fireball" class="btn-skill" title="Hellfire Orb (1 / X)">
+          <span class="skill-icon">🔥</span>
+          <span class="cd-overlay"></span>
+          <span class="cd-text"></span>
+          <span class="key-hint">1</span>
+          <span class="xbox-badge btn-x">X</span>
+        </button>
+        <button id="btn-attack" class="btn-skill btn-attack-main" title="Sword Attack (Space / A / RT)">
+          <span class="skill-icon">⚔️</span>
+          <span class="attack-pulse"></span>
+          <span class="key-hint">Space</span>
+          <span class="xbox-badge btn-a">A</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory & Equipment Modal -->
+  <div id="inventory-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <h2>HERO EQUIPMENT & INVENTORY</h2>
+        <button id="btn-close-inv" class="btn-close">✕</button>
+      </div>
+
+      <div class="inv-content">
+        <!-- Left: Equipment Doll & Stats -->
+        <div class="equipment-column">
+          <h3>EQUIPPED</h3>
+          <div class="equip-slots-layout">
+            <div class="slot-container">
+              <span class="slot-label">Weapon</span>
+              <div id="equip-weapon" class="equip-slot empty"></div>
+            </div>
+            <div class="slot-container">
+              <span class="slot-label">Armor</span>
+              <div id="equip-armor" class="equip-slot empty"></div>
+            </div>
+            <div class="slot-container">
+              <span class="slot-label">Ring</span>
+              <div id="equip-ring" class="equip-slot empty"></div>
+            </div>
+            <div class="slot-container">
+              <span class="slot-label">Amulet</span>
+              <div id="equip-amulet" class="equip-slot empty"></div>
+            </div>
+          </div>
+
+          <div class="stats-card">
+            <h4>ATTRIBUTES</h4>
+            <div class="stat-line"><span>Attack Power:</span> <strong id="stat-atk">0</strong></div>
+            <div class="stat-line"><span>Armor / Def:</span> <strong id="stat-def">0</strong></div>
+            <div class="stat-line"><span>Critical Rate:</span> <strong id="stat-crit">0%</strong></div>
+            <div class="stat-line"><span>Move Speed:</span> <strong id="stat-speed">0</strong></div>
+            <div class="stat-line"><span>Magic Power:</span> <strong id="stat-magic">0</strong></div>
+          </div>
+        </div>
+
+        <!-- Right: Backpack Grid -->
+        <div class="backpack-column">
+          <h3>BACKPACK (16 SLOTS)</h3>
+          <p class="backpack-instruction">Click an item to equip. Hover to inspect stats.</p>
+          <div id="inventory-grid" class="inv-grid">
+            <!-- 16 slots injected by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. SOUL SANCTUM MODAL (Permanent Meta-Progression) -->
+  <div id="sanctum-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel sanctum-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-with-badge">
+          <h2>🔮 SOUL SANCTUM OF THE ABYSS</h2>
+          <span class="sanctum-currency-badge">💎 <strong id="sanctum-balance-text">0</strong> Shards Available</span>
+        </div>
+        <button id="btn-close-sanctum" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">Forge eternal boons using harvested Soul Shards. Upgrades persist permanently across all expeditions, deaths, and victories.</p>
+
+      <div id="sanctum-grid" class="sanctum-grid">
+        <!-- Injected dynamically by UIManager -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. HALL OF RECORDS MODAL -->
+  <div id="records-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel records-modal-card">
+      <div class="modal-header">
+        <h2>🏆 HALL OF HEROES & RECORDS</h2>
+        <button id="btn-close-records" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">Lifetime achievements, deepest depths conquered, and historical expedition logs.</p>
+
+      <!-- Lifetime Stats Grid -->
+      <div class="records-stats-grid">
+        <div class="record-stat-box">
+          <div class="record-stat-label">DEEPEST DEPTH</div>
+          <div id="record-deepest-floor" class="record-stat-value">Depth 1</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">HIGHEST LEVEL</div>
+          <div id="record-highest-lvl" class="record-stat-value">LVL 1</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">EXPEDITIONS</div>
+          <div id="record-total-runs" class="record-stat-value">0</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">OVERLORDS SLAIN</div>
+          <div id="record-victories" class="record-stat-value">0</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">DEMONS VANQUISHED</div>
+          <div id="record-total-kills" class="record-stat-value">0</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">LIFETIME GOLD</div>
+          <div id="record-total-gold" class="record-stat-value">0</div>
+        </div>
+        <div class="record-stat-box">
+          <div class="record-stat-label">SOUL SHARDS HARVESTED</div>
+          <div id="record-total-shards" class="record-stat-value">0</div>
+        </div>
+      </div>
+
+      <!-- Recent Expeditions Table -->
+      <div class="recent-runs-section">
+        <h3>EXPEDITION LOG</h3>
+        <div class="table-container">
+          <table class="runs-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Outcome</th>
+                <th>Depth</th>
+                <th>Level</th>
+                <th>Gold</th>
+                <th>Shards</th>
+                <th>Kills</th>
+              </tr>
+            </thead>
+            <tbody id="records-history-tbody">
+              <!-- Injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ABYSS CODEX MODAL -->
+  <div id="codex-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel codex-modal-card">
+      <div class="modal-header">
+        <h2>📖 CODEX OF THE ABYSS</h2>
+        <button id="btn-close-codex" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">Demonic bestiary knowledge and ancient relics recovered from the deep.</p>
+
+      <div class="codex-content">
+        <!-- Bestiary -->
+        <h3>DEMONIC BESTIARY</h3>
+        <div id="bestiary-grid" class="bestiary-grid">
+          <!-- Injected by JS -->
+        </div>
+
+        <!-- Discovered Relics -->
+        <h3 style="margin-top: 20px;">DISCOVERED RELICS & ARTIFACTS</h3>
+        <div id="discovered-relics-list" class="relics-chips-grid">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. SETTINGS MODAL -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel settings-modal-card">
+      <div class="modal-header">
+        <h2>⚙️ GAMEPLAY & AUDIO SETTINGS</h2>
+        <button id="btn-close-settings" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">Configure audio volume, visual effects, and local storage data.</p>
+
+      <div class="settings-form">
+        <div class="setting-row">
+          <div class="setting-info">
+            <strong>Master Audio Volume</strong>
+            <span>Control ambient synthesis and combat sound effects</span>
+          </div>
+          <div class="setting-control">
+            <input type="range" id="setting-volume-slider" min="0" max="100" value="70">
+            <span id="setting-volume-label">70%</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <strong>Sound Muted</strong>
+            <span>Mute all Web Audio synthesizer output</span>
+          </div>
+          <div class="setting-control">
+            <input type="checkbox" id="setting-mute-checkbox" class="toggle-switch">
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <strong>Camera Trauma Shake</strong>
+            <span>Screen shake intensity during heavy impacts and spells</span>
+          </div>
+          <div class="setting-control">
+            <input type="checkbox" id="setting-shake-checkbox" class="toggle-switch" checked>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <strong>Controller Vibration (Haptics)</strong>
+            <span>Dual-rumble haptic feedback on Xbox and compatible gamepads</span>
+          </div>
+          <div class="setting-control">
+            <input type="checkbox" id="setting-vibration-checkbox" class="toggle-switch" checked>
+          </div>
+        </div>
+
+        <div class="danger-zone">
+          <div class="setting-info">
+            <strong>Wipe All Saved Data</strong>
+            <span>Delete active run, permanent Soul Sanctum boons, and hall records</span>
+          </div>
+          <button id="btn-wipe-data" class="btn-danger">Wipe Save Data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. WANDERING MERCHANT SHOP MODAL -->
+  <div id="shop-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel shop-modal-card">
+      <div class="modal-header">
+        <div class="shop-title-wrap">
+          <h2>🪙 GARRICK THE VOID BROKER</h2>
+          <span class="shop-tag">Wandering Merchant</span>
+        </div>
+        <button id="btn-close-shop" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">"Few survive these abyssal halls. Need potions, or perhaps some extra gold for your salvaged gear?"</p>
+
+      <div class="shop-wallet-banner">
+        <span>Your Gold: <strong id="shop-player-gold" class="gold-text">0 🪙</strong></span>
+        <span>Soul Shards: <strong id="shop-player-shards" class="shards-text">0 💎</strong></span>
+      </div>
+
+      <!-- Shop Navigation Tabs -->
+      <div class="shop-tabs">
+        <button id="tab-shop-buy" class="shop-tab active">Wares for Sale (Buy)</button>
+        <button id="tab-shop-sell" class="shop-tab">Sell Backpack Clutter</button>
+      </div>
+
+      <!-- Tab 1: Buy Wares -->
+      <div id="shop-buy-view" class="shop-view-panel">
+        <div id="shop-wares-grid" class="shop-grid">
+          <!-- Injected by JS: Potions, Elixirs, Shard Bundles, Rare Gear -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Sell Gear -->
+      <div id="shop-sell-view" class="shop-view-panel hidden">
+        <div id="shop-sell-grid" class="shop-grid">
+          <!-- Injected by JS: Inventory items with Sell values and Sell buttons -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Save Notification Toast -->
+  <div id="save-toast" class="save-toast hidden">✦ PROGRESS AUTO-SAVED</div>
+
+  <!-- Floating Tooltip -->
+  <div id="item-tooltip" class="item-tooltip-box hidden"></div>
+
+  <!-- Floor Transition Overlay -->
+  <div id="level-transition" class="transition-overlay hidden">
+    <div class="transition-box">
+      <div class="transition-portal">🌀</div>
+      <h2>DESCENDING DEEPER...</h2>
+      <p>The shadows grow colder and more ravenous.</p>
+    </div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="game-over-screen" class="overlay-screen hidden">
+    <div class="game-over-card glass-panel">
+      <div class="skull-banner">💀 YOU PERISHED 💀</div>
+      <h2>THE ABYSS CLAIMS YOUR SOUL</h2>
+      <div id="game-over-stats" class="summary-stats">
+        <!-- Injected by JS -->
+      </div>
+      <div class="screen-buttons-row">
+        <button id="btn-gameover-sanctum" class="btn-epic btn-sanctum-call">
+          <span>🔮 ENTER SOUL SANCTUM</span>
+        </button>
+        <button id="btn-restart" class="btn-epic">
+          <span>⚔️ TRY AGAIN</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Screen -->
+  <div id="victory-screen" class="overlay-screen hidden">
+    <div class="victory-card glass-panel">
+      <div class="trophy-banner">👑 VICTORY 👑</div>
+      <h2>THE ABYSS OVERLORD HAS FALLEN!</h2>
+      <p>You have vanquished the darkness and claimed legendary spoils.</p>
+      <div id="victory-stats" class="summary-stats">
+        <!-- Injected by JS -->
+      </div>
+      <div class="screen-buttons-row">
+        <button id="btn-victory-sanctum" class="btn-epic btn-sanctum-call">
+          <span>🔮 ENTER SOUL SANCTUM</span>
+        </button>
+        <button id="btn-victory-continue" class="btn-epic">
+          <span>CONTINUE INTO ENDLESS NIGHTMARE</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Scripts (StorageManager first so all systems can persist) -->
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/joystick.js"></script>
+  <script src="js/gamepad.js"></script>
+  <script src="js/items.js"></script>
+  <script src="js/dungeon.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
