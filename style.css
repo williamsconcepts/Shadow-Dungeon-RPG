@@ -425,13 +425,110 @@ kbd {
 }
 
 .minimap-frame {
-  padding: 4px;
-  border-radius: 12px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(10, 15, 29, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55), 0 0 15px rgba(56, 189, 248, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.minimap-frame:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.28);
+}
+
+.minimap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.radar-mode-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #38bdf8;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  pointer-events: none;
+}
+
+.radar-header-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.radar-mini-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 1px 5px;
+  font-size: 0.72rem;
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.radar-mini-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+}
+
+.radar-canvas-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.85);
+  border: 2px solid rgba(56, 189, 248, 0.35);
+  background: #06080e;
+  transition: border-radius 0.25s ease, border-color 0.25s ease;
+}
+
+.minimap-frame.mode-map .radar-canvas-wrap {
+  border-radius: 8px; /* Square container when displaying whole tactical map */
+  border-color: rgba(168, 85, 247, 0.45);
 }
 
 #minimap-canvas {
+  width: 100%;
+  height: 100%;
   display: block;
-  border-radius: 8px;
+}
+
+.radar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  font-size: 0.66rem;
+  color: #94a3b8;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.radar-exit-tag {
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+.radar-exit-tag.found {
+  color: #10b981;
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+  font-weight: 700;
+}
+
+.radar-exit-tag.locked {
+  color: #ef4444;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+  font-weight: 700;
 }
 
 .info-badges {
@@ -1082,12 +1179,13 @@ kbd {
   }
 
   .minimap-frame {
-    padding: 2px;
+    padding: 3px;
+    gap: 2px;
   }
 
-  #minimap-canvas {
-    width: 80px;
-    height: 80px;
+  .radar-canvas-wrap {
+    width: 95px;
+    height: 95px;
   }
 
   .info-badges {
@@ -1262,9 +1360,9 @@ kbd {
     padding: 6px 8px;
   }
 
-  #minimap-canvas {
-    width: 68px;
-    height: 68px;
+  .radar-canvas-wrap {
+    width: 76px;
+    height: 76px;
   }
 
   .info-badges {
@@ -1287,9 +1385,9 @@ kbd {
     min-width: 160px;
   }
 
-  #minimap-canvas {
-    width: 60px;
-    height: 60px;
+  .radar-canvas-wrap {
+    width: 68px;
+    height: 68px;
   }
 
   .controls-layer {
@@ -2240,6 +2338,215 @@ body.gamepad-active .key-hint {
   background: rgba(0, 0, 0, 0.35);
   color: #cbd5e1;
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   DIFFICULTY & HARDCORE MODE SELECTOR
+   ========================================================================== */
+.difficulty-selection-container {
+  width: 100%;
+  max-width: 680px;
+  margin: 10px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selector-title {
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  color: #fbbf24;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+}
+
+.difficulty-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 650px) {
+  .difficulty-pills-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.diff-pill {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #f8fafc;
+  outline: none;
+}
+
+.diff-pill:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+  background: rgba(30, 41, 59, 0.8);
+  transform: translateY(-2px);
+}
+
+.diff-pill.active {
+  border-color: #38bdf8;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25), inset 0 0 12px rgba(56, 189, 248, 0.1);
+}
+
+.diff-pill[data-diff="NIGHTMARE"].active {
+  border-color: #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), inset 0 0 12px rgba(245, 158, 11, 0.1);
+}
+
+.diff-pill[data-diff="INFERNO"].active {
+  border-color: #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), inset 0 0 12px rgba(239, 68, 68, 0.15);
+}
+
+.diff-icon {
+  font-size: 1.4rem;
+}
+
+.diff-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diff-name {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.5px;
+}
+
+.diff-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.diff-badge.normal {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.diff-badge.nightmare {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.diff-badge.inferno {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.diff-reward {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.diff-reward.gold {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.diff-reward.infernal {
+  color: #f43f5e;
+  font-weight: 700;
+}
+
+/* Hardcore Mode Toggle */
+.hardcore-toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-top: 4px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 20px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  transition: all 0.2s ease;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hardcore-toggle-label:hover {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(30, 41, 59, 0.7);
+}
+
+.hardcore-checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ef4444;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.hardcore-checkbox:checked {
+  background: #dc2626;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+.hardcore-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hardcore-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f87171;
+  letter-spacing: 0.5px;
+}
+
+.hardcore-subtext {
+  font-weight: 400;
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+/* In-Game Difficulty Badge in HUD */
+.diff-chip {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.diff-chip.nightmare {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #f59e0b;
+}
+
+.diff-chip.inferno {
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
 /* ==========================================================================

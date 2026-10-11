@@ -1,5 +1,48 @@
 // Game Engine & Loop Orchestrator
 
+const DIFFICULTIES = {
+  NORMAL: {
+    id: 'NORMAL',
+    name: 'Adventurer',
+    hpMult: 1.0,
+    dmgMult: 1.0,
+    speedMult: 1.0,
+    eliteChance: 0.20,
+    goldMult: 1.0,
+    shardMult: 1.0,
+    xpMult: 1.0,
+    badgeClass: 'diff-chip normal',
+    badgeText: '🛡️ Adventurer'
+  },
+  NIGHTMARE: {
+    id: 'NIGHTMARE',
+    name: 'Nightmare',
+    hpMult: 1.55,
+    dmgMult: 1.40,
+    speedMult: 1.15,
+    eliteChance: 0.45,
+    goldMult: 1.50,
+    shardMult: 1.50,
+    xpMult: 1.40,
+    badgeClass: 'diff-chip nightmare',
+    badgeText: '⚔️ Nightmare'
+  },
+  INFERNO: {
+    id: 'INFERNO',
+    name: 'Inferno',
+    hpMult: 2.30,
+    dmgMult: 1.95,
+    speedMult: 1.30,
+    eliteChance: 0.75,
+    goldMult: 2.20,
+    shardMult: 2.50,
+    xpMult: 2.00,
+    badgeClass: 'diff-chip inferno',
+    badgeText: '💀 Inferno'
+  }
+};
+window.DIFFICULTIES = DIFFICULTIES;
+
 class Camera {
   constructor(width, height) {
     this.x = 0;
@@ -84,6 +127,10 @@ class Game {
     this.bossEnemy = null;
     this.autoSaveTimer = 0;
     this.selectedHeroClass = 'WARRIOR';
+    this.difficulty = 'NORMAL';
+    this.hardcore = false;
+    this.floorCleared = false;
+    this._lastStairWarn = 0;
     this.urns = [];
     this.traps = [];
     this.shrines = [];
@@ -96,6 +143,19 @@ class Game {
     this.setupJoystick();
 
     this.ui = new window.UIManager(this);
+  }
+
+  getDifficultyMultipliers() {
+    const diff = window.DIFFICULTIES?.[this.difficulty] || window.DIFFICULTIES?.NORMAL;
+    return diff || {
+      hpMult: 1.0,
+      dmgMult: 1.0,
+      speedMult: 1.0,
+      eliteChance: 0.20,
+      goldMult: 1.0,
+      shardMult: 1.0,
+      xpMult: 1.0
+    };
   }
 
   setupWindow() {
@@ -166,6 +226,12 @@ class Game {
         this.player.useHealthPotion(this.floatingTexts);
       } else if (e.code === 'Digit5' || e.code === 'KeyV') {
         this.player.useManaPotion(this.floatingTexts);
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        this.ui.toggleMinimapMode();
+      } else if (e.code === 'KeyZ') {
+        e.preventDefault();
+        this.ui.cycleRadarZoom();
       }
     });
 
@@ -227,6 +293,11 @@ class Game {
     // Toggle Inventory with View/Back or Start/Menu
     if (this.gamepad.isJustPressed('View') || this.gamepad.isJustPressed('Menu')) {
       this.ui.toggleInventory();
+    }
+
+    // Toggle Radar / Full Map mode with DPad-Up or R3
+    if (this.gamepad.isJustPressed('DPadUp') || this.gamepad.isJustPressed('R3')) {
+      this.ui.toggleMinimapMode();
     }
 
     // Check if shop modal is open
@@ -331,13 +402,27 @@ class Game {
       }
     }
 
-    // 4. Check if on stairs
+    // 4. Check if on stairs (Locked until all villains eliminated)
     const stairsWorldX = (this.dungeon.stairs.x + 0.5) * this.dungeon.tileSize;
     const stairsWorldY = (this.dungeon.stairs.y + 0.5) * this.dungeon.tileSize;
     const distToStairs = Math.hypot(this.player.x - stairsWorldX, this.player.y - stairsWorldY);
-    if (distToStairs < 38) {
-      if (this.dungeon.isBossFloor && this.bossEnemy && !this.bossEnemy.isDead) {
-        this.floatingTexts.push(new window.FloatingText(this.player.x, this.player.y - 25, 'Defeat the Overlord first!', '#ef4444'));
+    if (distToStairs < 42) {
+      const remainingEnemies = this.enemies.filter(e => !e.isDead).length;
+      if (remainingEnemies > 0) {
+        if (this.dungeon.isBossFloor) {
+          this.floatingTexts.push(new window.FloatingText(this.player.x, this.player.y - 25, 'Defeat the Overlord first!', '#ef4444', true));
+        } else {
+          this.floatingTexts.push(new window.FloatingText(
+            this.player.x,
+            this.player.y - 25,
+            `🔒 Portal Sealed! Slay remaining ${remainingEnemies} villain${remainingEnemies === 1 ? '' : 's'}!`,
+            '#ef4444',
+            true
+          ));
+        }
+        if (window.soundEngine && window.soundEngine.playHitImpact) {
+          window.soundEngine.playHitImpact(false);
+        }
         return;
       }
       this.descendFloor();
@@ -363,10 +448,12 @@ class Game {
     }
 
     // Drop loot
+    const diff = this.getDifficultyMultipliers();
     const drop = window.ItemSystem.generateLootDrop(this.floorNumber, false);
     if (drop.type === 'gold') {
-      this.player.gold += drop.amount;
-      this.floatingTexts.push(new window.FloatingText(chest.x, chest.y - 25, `+${drop.amount} Gold!`, '#fbbf24', true));
+      const scaledGold = Math.max(1, Math.round(drop.amount * diff.goldMult));
+      this.player.gold += scaledGold;
+      this.floatingTexts.push(new window.FloatingText(chest.x, chest.y - 25, `+${scaledGold} Gold!`, '#fbbf24', true));
       if (window.soundEngine) window.soundEngine.playCoin();
     } else if (drop.type === 'potion') {
       if (drop.potionType === 'health') {
@@ -382,8 +469,9 @@ class Game {
       this.ui.refreshInventoryUI();
     }
 
-    // Bonus Soul Shards drop from chests
-    const shardDrop = Math.floor(6 + Math.random() * 6 * this.floorNumber);
+    // Bonus Soul Shards drop from chests (scaled by difficulty)
+    const baseShardDrop = Math.floor(6 + Math.random() * 6 * this.floorNumber);
+    const shardDrop = Math.max(1, Math.round(baseShardDrop * diff.shardMult));
     if (window.StorageManager) window.StorageManager.addSoulShards(shardDrop);
     this.player.shardsEarnedThisRun = (this.player.shardsEarnedThisRun || 0) + shardDrop;
     this.floatingTexts.push(new window.FloatingText(chest.x, chest.y - 45, `+${shardDrop} 💎 Shards!`, '#c084fc', true));
@@ -392,13 +480,29 @@ class Game {
     this.requestAutoSave();
   }
 
-  startNewGame(heroClass = null) {
+  startNewGame(heroClass = null, difficulty = null, hardcore = null) {
     if (window.StorageManager) {
       window.StorageManager.clearActiveRun();
     }
     if (heroClass) {
       this.selectedHeroClass = heroClass;
     }
+    if (difficulty) {
+      this.difficulty = difficulty;
+    } else if (this.ui && this.ui.selectedDifficulty) {
+      this.difficulty = this.ui.selectedDifficulty;
+    } else {
+      this.difficulty = 'NORMAL';
+    }
+
+    if (hardcore !== null && hardcore !== undefined) {
+      this.hardcore = !!hardcore;
+    } else if (this.ui && this.ui.selectedHardcore !== undefined) {
+      this.hardcore = !!this.ui.selectedHardcore;
+    } else {
+      this.hardcore = false;
+    }
+
     this.floorNumber = 1;
     this.monstersDefeated = 0;
     this.loadFloor(this.floorNumber, true);
@@ -415,7 +519,8 @@ class Game {
 
     this.ui.refreshInventoryUI();
     this.requestAutoSave();
-    this.showSaveToast('Expedition Commenced');
+    const modeLabel = this.hardcore ? ' (Hardcore Permadeath)' : '';
+    this.showSaveToast(`Expedition Commenced • ${this.difficulty}${modeLabel}`);
   }
 
   resumeSavedGame() {
@@ -427,6 +532,8 @@ class Game {
 
     this.floorNumber = run.floorNumber || 1;
     this.monstersDefeated = run.monstersDefeated || 0;
+    this.difficulty = run.difficulty || 'NORMAL';
+    this.hardcore = !!run.hardcore;
     this.loadFloor(this.floorNumber, false);
     this.player.deserialize(run.playerData);
     if (typeof run.shardsEarnedThisRun === 'number') {
@@ -444,7 +551,7 @@ class Game {
     }
 
     this.ui.refreshInventoryUI();
-    this.showSaveToast(`✦ Resumed Depth ${this.floorNumber}`);
+    this.showSaveToast(`✦ Resumed Depth ${this.floorNumber} [${this.difficulty}]`);
   }
 
   requestAutoSave() {
@@ -489,6 +596,8 @@ class Game {
 
   loadFloor(floorNum, isFirstFloor = false) {
     this.floorNumber = floorNum;
+    this.floorCleared = false;
+    this._lastStairWarn = 0;
     this.dungeon = new window.Dungeon(floorNum);
 
     if (isFirstFloor || !this.player) {
@@ -512,9 +621,10 @@ class Game {
     this.shrines = this.dungeon.shrines.map(s => new window.Shrine(s.x, s.y, s.type));
     this.merchant = this.dungeon.merchant ? new window.Merchant(this.dungeon.merchant.x, this.dungeon.merchant.y) : null;
 
+    const diffOpts = this.getDifficultyMultipliers();
     if (this.dungeon.isBossFloor) {
       // Spawn Boss
-      this.bossEnemy = new window.Enemy(this.dungeon.bossSpawn.x, this.dungeon.bossSpawn.y, 'BOSS', floorNum);
+      this.bossEnemy = new window.Enemy(this.dungeon.bossSpawn.x, this.dungeon.bossSpawn.y, 'BOSS', floorNum, diffOpts);
       this.enemies.push(this.bossEnemy);
     } else {
       // Spawn standard room mobs
@@ -523,7 +633,7 @@ class Game {
         let type = 'SLIME';
         if (roll > 0.65) type = 'SORCERER';
         else if (roll > 0.3) type = 'SKELETON';
-        this.enemies.push(new window.Enemy(spawn.x, spawn.y, type, floorNum));
+        this.enemies.push(new window.Enemy(spawn.x, spawn.y, type, floorNum, diffOpts));
       });
     }
 
@@ -533,6 +643,42 @@ class Game {
     // Set camera immediately to player
     this.camera.x = this.player.x - this.camera.width / 2;
     this.camera.y = this.player.y - this.camera.height / 2;
+  }
+
+  onFloorCleared() {
+    if (this.floorCleared) return;
+    this.floorCleared = true;
+
+    // Celebratory floating text
+    this.floatingTexts.push(new window.FloatingText(
+      this.player.x,
+      this.player.y - 50,
+      '★ STAGE CLEARED — PORTAL UNSEALED! ★',
+      '#10b981',
+      true
+    ));
+
+    // Sound effect
+    if (window.soundEngine && window.soundEngine.playLevelUp) {
+      window.soundEngine.playLevelUp();
+    }
+
+    // Portal sparkles at stairs location
+    if (this.dungeon && this.dungeon.stairs) {
+      const sx = (this.dungeon.stairs.x + 0.5) * this.dungeon.tileSize;
+      const sy = (this.dungeon.stairs.y + 0.5) * this.dungeon.tileSize;
+      for (let i = 0; i < 28; i++) {
+        this.particles.push(new window.Particle(sx, sy, {
+          vx: (Math.random() - 0.5) * 180,
+          vy: (Math.random() - 0.5) * 180,
+          size: 4 + Math.random() * 3,
+          color: Math.random() < 0.5 ? '#10b981' : '#38bdf8',
+          life: 0.85
+        }));
+      }
+    }
+
+    this.showSaveToast('★ All Villains Slain • Portal Unsealed ★');
   }
 
   descendFloor() {
@@ -627,6 +773,8 @@ class Game {
           monstersDefeated: this.monstersDefeated,
           gold: this.player.gold,
           shardsEarned: shardsEarned,
+          difficulty: this.difficulty,
+          hardcore: this.hardcore,
           outcome: 'PERISHED'
         });
         window.StorageManager.clearActiveRun();
@@ -636,7 +784,9 @@ class Game {
         level: this.player.level,
         monstersDefeated: this.monstersDefeated,
         gold: this.player.gold,
-        shardsEarned: shardsEarned
+        shardsEarned: shardsEarned,
+        difficulty: this.difficulty,
+        hardcore: this.hardcore
       });
       return;
     }
@@ -650,13 +800,16 @@ class Game {
         // Check if boss died
         if (enemy.isBoss) {
           this.floatingTexts.push(new window.FloatingText(enemy.x, enemy.y - 40, 'ABYSS OVERLORD SLAIN!', '#fbbf24', true));
-          // Drop massive loot
+          // Drop massive loot (scaled by difficulty)
+          const diff = this.getDifficultyMultipliers();
           const bossLoot = window.ItemSystem.generateLootDrop(this.floorNumber, true);
           this.player.inventory.push(bossLoot.item);
-          this.player.gold += bossLoot.gold;
+          const scaledGold = Math.max(1, Math.round(bossLoot.gold * diff.goldMult));
+          this.player.gold += scaledGold;
           if (bossLoot.shards && window.StorageManager) {
-            window.StorageManager.addSoulShards(bossLoot.shards);
-            this.player.shardsEarnedThisRun = (this.player.shardsEarnedThisRun || 0) + bossLoot.shards;
+            const scaledShards = Math.max(1, Math.round(bossLoot.shards * diff.shardMult));
+            window.StorageManager.addSoulShards(scaledShards);
+            this.player.shardsEarnedThisRun = (this.player.shardsEarnedThisRun || 0) + scaledShards;
           }
           this.ui.refreshInventoryUI();
           if (window.StorageManager) {
@@ -666,14 +819,21 @@ class Game {
               monstersDefeated: this.monstersDefeated,
               gold: this.player.gold,
               shardsEarned: this.player.shardsEarnedThisRun || 0,
+              difficulty: this.difficulty,
+              hardcore: this.hardcore,
               bossSlain: true,
               outcome: 'VICTORY'
             });
             window.StorageManager.clearActiveRun();
           }
-          this.ui.showVictory(this.player.shardsEarnedThisRun || 0);
+          this.ui.showVictory(this.player.shardsEarnedThisRun || 0, this.difficulty, this.hardcore);
         }
         this.enemies.splice(i, 1);
+
+        // Check if all villains have been eliminated on this floor!
+        if (this.enemies.length === 0 && !this.dungeon.isBossFloor) {
+          this.onFloorCleared();
+        }
       }
     }
 
@@ -736,6 +896,35 @@ class Game {
     for (let i = this.telegraphs.length - 1; i >= 0; i--) {
       if (this.telegraphs[i].update(dt)) {
         this.telegraphs.splice(i, 1);
+      }
+    }
+
+    // Check stepping onto stairs: auto-descend if cleared, or warn if sealed
+    if (this.dungeon && this.dungeon.stairs) {
+      const stairsWorldX = (this.dungeon.stairs.x + 0.5) * this.dungeon.tileSize;
+      const stairsWorldY = (this.dungeon.stairs.y + 0.5) * this.dungeon.tileSize;
+      const distToStairs = Math.hypot(this.player.x - stairsWorldX, this.player.y - stairsWorldY);
+      const remainingEnemies = this.enemies.filter(e => !e.isDead).length;
+
+      if (distToStairs < 26) {
+        if (this.floorCleared && remainingEnemies === 0 && !this.dungeon.isBossFloor) {
+          this.descendFloor();
+          return;
+        } else if (remainingEnemies > 0 || !this.floorCleared) {
+          if (!this._lastStairWarn || Date.now() - this._lastStairWarn > 2600) {
+            this._lastStairWarn = Date.now();
+            this.floatingTexts.push(new window.FloatingText(
+              this.player.x,
+              this.player.y - 25,
+              `🔒 Portal Sealed! ${remainingEnemies} villain${remainingEnemies === 1 ? '' : 's'} remain`,
+              '#ef4444',
+              true
+            ));
+            if (window.soundEngine && window.soundEngine.playHitImpact) {
+              window.soundEngine.playHitImpact(false);
+            }
+          }
+        }
       }
     }
 
@@ -849,17 +1038,57 @@ class Game {
           // Floor base
           ctx.fillStyle = '#101420';
           ctx.fillRect(px, py, ts, ts);
-          // Glowing portal stairs
-          ctx.fillStyle = '#065f46';
-          ctx.fillRect(px + 6, py + 6, ts - 12, ts - 12);
-          ctx.strokeStyle = '#10b981';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(px + 6, py + 6, ts - 12, ts - 12);
-          // Step bars
-          ctx.fillStyle = '#34d399';
-          ctx.fillRect(px + 10, py + 12, ts - 20, 4);
-          ctx.fillRect(px + 10, py + 22, ts - 20, 4);
-          ctx.fillRect(px + 10, py + 32, ts - 20, 4);
+
+          const remaining = this.enemies ? this.enemies.filter(e => !e.isDead).length : 0;
+          const isLocked = remaining > 0;
+
+          if (isLocked) {
+            // LOCKED PORTAL (Crimson obsidian seal with chained runic barrier)
+            ctx.fillStyle = '#26060c';
+            ctx.fillRect(px + 6, py + 6, ts - 12, ts - 12);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(px + 6, py + 6, ts - 12, ts - 12);
+
+            // Pulsing Runic Lock Barrier
+            const lockPulse = (Math.sin(Date.now() / 250) + 1) * 0.5;
+            ctx.strokeStyle = `rgba(239, 68, 68, ${0.4 + lockPulse * 0.5})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(px + 10, py + 10);
+            ctx.lineTo(px + ts - 10, py + ts - 10);
+            ctx.moveTo(px + ts - 10, py + 10);
+            ctx.lineTo(px + 10, py + ts - 10);
+            ctx.stroke();
+
+            // Lock Icon in center
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🔒', px + ts / 2, py + ts / 2);
+          } else {
+            // UNSEALED PORTAL (Radiant emerald stairs with ascending portal energy)
+            ctx.fillStyle = '#065f46';
+            ctx.fillRect(px + 6, py + 6, ts - 12, ts - 12);
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(px + 6, py + 6, ts - 12, ts - 12);
+
+            // Step bars
+            ctx.fillStyle = '#34d399';
+            ctx.fillRect(px + 10, py + 12, ts - 20, 4);
+            ctx.fillRect(px + 10, py + 22, ts - 20, 4);
+            ctx.fillRect(px + 10, py + 32, ts - 20, 4);
+
+            // Swirling Portal Light Ripple
+            const openPulse = (Math.sin(Date.now() / 180) + 1) * 0.5;
+            ctx.strokeStyle = `rgba(52, 211, 153, ${0.4 + openPulse * 0.6})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(px + ts / 2, py + ts / 2, (ts / 2 - 4) * (0.8 + openPulse * 0.2), 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
       }
     }

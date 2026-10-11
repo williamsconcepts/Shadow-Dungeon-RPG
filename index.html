@@ -98,6 +98,44 @@
         </div>
       </div>
 
+      <!-- Difficulty & Mode Selector -->
+      <div class="difficulty-selection-container">
+        <div class="selector-title">⚔️ EXPEDITION DIFFICULTY ⚔️</div>
+        <div class="difficulty-pills-grid">
+          <button type="button" class="diff-pill active" data-diff="NORMAL" title="Standard dungeon balance">
+            <span class="diff-icon">🛡️</span>
+            <div class="diff-info">
+              <span class="diff-name">Adventurer</span>
+              <span class="diff-badge normal">Standard</span>
+            </div>
+            <span class="diff-reward">1.0× Rewards</span>
+          </button>
+          <button type="button" class="diff-pill" data-diff="NIGHTMARE" title="+55% Mob HP, +40% Damage, 45% Elites">
+            <span class="diff-icon">⚔️</span>
+            <div class="diff-info">
+              <span class="diff-name">Nightmare</span>
+              <span class="diff-badge nightmare">+55% HP</span>
+            </div>
+            <span class="diff-reward gold">+50% Gold & 💎</span>
+          </button>
+          <button type="button" class="diff-pill" data-diff="INFERNO" title="+130% Mob HP, +95% Damage, 75% Elites">
+            <span class="diff-icon">💀</span>
+            <div class="diff-info">
+              <span class="diff-name">Inferno</span>
+              <span class="diff-badge inferno">+130% HP</span>
+            </div>
+            <span class="diff-reward infernal">+150% 💎 Shards</span>
+          </button>
+        </div>
+
+        <!-- Hardcore Permadeath Toggle -->
+        <label class="hardcore-toggle-label" title="Permadeath: Dying permanently wipes the run. High risk, glory eternal!">
+          <input type="checkbox" id="check-hardcore" class="hardcore-checkbox">
+          <span class="hardcore-slider"></span>
+          <span class="hardcore-text">💀 Hardcore Mode <span class="hardcore-subtext">(Permadeath)</span></span>
+        </label>
+      </div>
+
       <!-- Active Run Preview Card (Shown if a run is in progress) -->
       <div id="active-run-preview" class="active-run-card hidden">
         <div class="run-card-header">
@@ -198,14 +236,28 @@
       </div>
     </div>
 
-    <!-- Top-Right: Minimap, Gold & Depth -->
+    <!-- Top-Right: Minimap / Tactical Radar, Gold & Depth -->
     <div class="hud-top-right">
-      <div class="minimap-frame glass-panel">
-        <canvas id="minimap-canvas" width="130" height="130"></canvas>
+      <div class="minimap-frame glass-panel" id="minimap-frame" title="Click to toggle Tactical Radar / Full Map (or press 'M')">
+        <div class="minimap-header">
+          <span class="radar-mode-tag" id="radar-mode-tag">🎯 RADAR</span>
+          <div class="radar-header-controls">
+            <button type="button" id="btn-radar-zoom" class="radar-mini-btn" title="Toggle Radar Zoom (Z)">🔍</button>
+            <button type="button" id="btn-toggle-map-mode" class="radar-mini-btn" title="Toggle Radar / Full Map (M)">🗺️</button>
+          </div>
+        </div>
+        <div class="radar-canvas-wrap">
+          <canvas id="minimap-canvas" width="280" height="280"></canvas>
+        </div>
+        <div class="radar-footer">
+          <span id="radar-enemy-count">👾 0 Mobs</span>
+          <span id="radar-exit-status" class="radar-exit-tag">🚪 Unseen</span>
+        </div>
       </div>
       <div class="info-badges">
         <div id="gamepad-badge" class="badge-chip gamepad-chip">🎮 <span id="gamepad-badge-text">Xbox Pad</span></div>
         <div id="depth-badge" class="badge-chip">Depth 1</div>
+        <div id="diff-badge" class="badge-chip diff-chip">🛡️ Adventurer</div>
         <div class="badge-chip shard-chip" title="Permanent Soul Shards">💎 <span id="shard-text">0</span></div>
         <div class="badge-chip gold-chip">🪙 <span id="gold-text">0</span></div>
         <button id="btn-inventory-toggle" class="btn-icon-chip" title="Inventory (I / View)">🎒<span class="xbox-badge btn-view-badge">View</span></button>

@@ -71,15 +71,115 @@ class UIManager {
     this.statsSummary = document.getElementById('game-over-stats');
     this.victoryStatsSummary = document.getElementById('victory-stats');
 
-    // Minimap Canvas
+    // Minimap / Tactical Radar Elements
+    this.minimapFrame = document.getElementById('minimap-frame');
     this.minimapCanvas = document.getElementById('minimap-canvas');
     this.minimapCtx = this.minimapCanvas ? this.minimapCanvas.getContext('2d') : null;
+    this.radarModeTag = document.getElementById('radar-mode-tag');
+    this.btnToggleMapMode = document.getElementById('btn-toggle-map-mode');
+    this.btnRadarZoom = document.getElementById('btn-radar-zoom');
+    this.radarEnemyCount = document.getElementById('radar-enemy-count');
+    this.radarExitStatus = document.getElementById('radar-exit-status');
+
+    this.minimapMode = 'RADAR'; // 'RADAR' (Zoomed Tactical View) or 'MAP' (Full Floor Overview)
+    this.radarZoom = 1.0; // 1.0 (Standard), 1.5 (Close), 0.65 (Wide)
+    this.radarSweepAngle = 0;
+
+    this.selectedDifficulty = 'NORMAL';
+    this.selectedHardcore = false;
 
     this.bindButtons();
     this.bindHubModals();
     this.bindClassSelection();
+    this.bindDifficultySelection();
+    this.bindMinimapControls();
     this.bindShopModal();
     this.updateTitleScreen();
+  }
+
+  bindMinimapControls() {
+    if (this.minimapFrame) {
+      this.minimapFrame.addEventListener('click', (e) => {
+        if (e.target && (e.target.id === 'btn-radar-zoom' || e.target.closest('#btn-radar-zoom'))) {
+          e.stopPropagation();
+          this.cycleRadarZoom();
+          return;
+        }
+        if (e.target && (e.target.id === 'btn-toggle-map-mode' || e.target.closest('#btn-toggle-map-mode'))) {
+          e.stopPropagation();
+          this.toggleMinimapMode();
+          return;
+        }
+        this.toggleMinimapMode();
+      });
+    }
+
+    if (this.btnToggleMapMode) {
+      this.btnToggleMapMode.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleMinimapMode();
+      });
+    }
+
+    if (this.btnRadarZoom) {
+      this.btnRadarZoom.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.cycleRadarZoom();
+      });
+    }
+  }
+
+  toggleMinimapMode(forceMode = null) {
+    if (forceMode) {
+      this.minimapMode = forceMode;
+    } else {
+      this.minimapMode = (this.minimapMode === 'RADAR') ? 'MAP' : 'RADAR';
+    }
+
+    if (this.minimapFrame) {
+      if (this.minimapMode === 'MAP') {
+        this.minimapFrame.classList.add('mode-map');
+      } else {
+        this.minimapFrame.classList.remove('mode-map');
+      }
+    }
+
+    if (this.radarModeTag) {
+      this.radarModeTag.textContent = this.minimapMode === 'RADAR' ? '🎯 RADAR' : '🗺️ MAP';
+      this.radarModeTag.style.color = this.minimapMode === 'RADAR' ? '#38bdf8' : '#c084fc';
+    }
+
+    if (this.btnToggleMapMode) {
+      this.btnToggleMapMode.textContent = this.minimapMode === 'RADAR' ? '🗺️' : '🎯';
+      this.btnToggleMapMode.title = this.minimapMode === 'RADAR' ? 'Switch to Full Map (M)' : 'Switch to Tactical Radar (M)';
+    }
+
+    if (window.soundEngine && window.soundEngine.playRadarPing) {
+      window.soundEngine.playRadarPing();
+    }
+  }
+
+  cycleRadarZoom() {
+    if (this.minimapMode !== 'RADAR') {
+      this.toggleMinimapMode('RADAR');
+      return;
+    }
+
+    if (this.radarZoom === 1.0) {
+      this.radarZoom = 1.5; // Zoom In
+    } else if (this.radarZoom === 1.5) {
+      this.radarZoom = 0.65; // Zoom Out
+    } else {
+      this.radarZoom = 1.0; // Normal
+    }
+
+    if (this.btnRadarZoom) {
+      this.btnRadarZoom.textContent = this.radarZoom === 1.5 ? '🔍+' : (this.radarZoom === 0.65 ? '🔍-' : '🔍');
+    }
+
+    if (window.soundEngine && window.soundEngine.playBuy) {
+      window.soundEngine.playBuy();
+    }
   }
 
   bindClassSelection() {
@@ -99,19 +199,68 @@ class UIManager {
     });
   }
 
+  bindDifficultySelection() {
+    const diffPills = document.querySelectorAll('.diff-pill');
+    const hardcoreCheckbox = document.getElementById('check-hardcore');
+
+    // Read stored preferences if available
+    const settings = window.StorageManager ? window.StorageManager.getSettings() : {};
+    this.selectedDifficulty = settings.difficulty || 'NORMAL';
+    this.selectedHardcore = !!settings.hardcore;
+
+    diffPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        diffPills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        const chosen = pill.dataset.diff;
+        if (chosen) {
+          this.selectedDifficulty = chosen;
+          this.game.difficulty = chosen;
+          if (window.soundEngine && window.soundEngine.playBuy) {
+            window.soundEngine.playBuy();
+          }
+          if (window.StorageManager) {
+            window.StorageManager.saveSettings({ difficulty: chosen });
+          }
+        }
+      });
+    });
+
+    if (hardcoreCheckbox) {
+      hardcoreCheckbox.addEventListener('change', (e) => {
+        this.selectedHardcore = e.target.checked;
+        this.game.hardcore = this.selectedHardcore;
+        if (window.soundEngine && window.soundEngine.playHitImpact) {
+          window.soundEngine.playHitImpact(true);
+        }
+        if (window.StorageManager) {
+          window.StorageManager.saveSettings({ hardcore: this.selectedHardcore });
+        }
+      });
+    }
+  }
+
   // -------------------------------------------------------------
   // TITLE SCREEN & RUN PERSISTENCE
   // -------------------------------------------------------------
   updateTitleScreen() {
     const hasRun = window.StorageManager ? window.StorageManager.hasActiveRun() : false;
     const profile = window.StorageManager ? window.StorageManager.getProfile() : { soulShards: 0 };
+    const settings = window.StorageManager ? window.StorageManager.getSettings() : {};
 
     if (this.titleShardCount) {
       this.titleShardCount.textContent = profile.soulShards;
     }
 
+    // Set UI pills and hardcore toggle to match active run or stored setting
+    let activeDiff = settings.difficulty || 'NORMAL';
+    let isHardcore = !!settings.hardcore;
+
     if (hasRun && this.btnResumeGame) {
       const run = window.StorageManager.getActiveRun();
+      activeDiff = run.difficulty || 'NORMAL';
+      isHardcore = !!run.hardcore;
+
       this.btnResumeGame.classList.remove('hidden');
       this.btnResumeGame.innerHTML = `<span class="btn-sparkle">✦</span> RESUME EXPEDITION (Depth ${run.floorNumber} • Lv ${run.playerData.level}) <span class="btn-sparkle">✦</span>`;
 
@@ -125,6 +274,7 @@ class UIManager {
         const invCount = (run.playerData.inventory || []).length;
         this.activeRunStats.innerHTML = `
           <span><strong>Depth:</strong> Floor ${run.floorNumber}</span>
+          <span><strong>Difficulty:</strong> ${activeDiff}${isHardcore ? ' • 💀 HARDCORE' : ''}</span>
           <span><strong>Hero:</strong> Level ${run.playerData.level} (${Math.ceil(run.playerData.hp)}/${run.playerData.maxHp} HP)</span>
           <span><strong>Spoils:</strong> ${run.playerData.gold} Gold • ${run.shardsEarnedThisRun || 0} 💎</span>
           <span><strong>Gear:</strong> ${eqCount} Equipped, ${invCount} in Pack</span>
@@ -136,6 +286,23 @@ class UIManager {
         this.btnStartGame.innerHTML = `<span class="btn-sparkle">✦</span> ENTER THE DUNGEON <span class="btn-sparkle">✦</span>`;
       }
       if (this.activeRunPreview) this.activeRunPreview.classList.add('hidden');
+    }
+
+    // Synchronize UI pills and checkbox
+    this.selectedDifficulty = activeDiff;
+    this.selectedHardcore = isHardcore;
+    this.game.difficulty = activeDiff;
+    this.game.hardcore = isHardcore;
+
+    const diffPills = document.querySelectorAll('.diff-pill');
+    diffPills.forEach(p => {
+      if (p.dataset.diff === activeDiff) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+
+    const hardcoreCheckbox = document.getElementById('check-hardcore');
+    if (hardcoreCheckbox) {
+      hardcoreCheckbox.checked = isHardcore;
     }
   }
 
@@ -616,6 +783,19 @@ class UIManager {
     }
     this.depthBadge.textContent = `Depth ${dungeon.floor}${dungeon.isBossFloor ? ' (Boss)' : ''}`;
 
+    // Difficulty & Hardcore badge in HUD
+    const diffBadge = document.getElementById('diff-badge');
+    if (diffBadge) {
+      const diffKey = this.game.difficulty || 'NORMAL';
+      const diffObj = window.DIFFICULTIES?.[diffKey] || window.DIFFICULTIES?.NORMAL;
+      let label = diffObj ? diffObj.badgeText : '🛡️ Adventurer';
+      if (this.game.hardcore) {
+        label += ' • 💀 Hardcore';
+      }
+      diffBadge.textContent = label;
+      diffBadge.className = `badge-chip diff-chip ${diffKey.toLowerCase()}${this.game.hardcore ? ' hardcore' : ''}`;
+    }
+
     // Potions Count
     this.potionHpCount.textContent = player.healthPotions;
     this.potionMpCount.textContent = player.manaPotions;
@@ -693,95 +873,546 @@ class UIManager {
     const ctx = this.minimapCtx;
     const w = this.minimapCanvas.width;
     const h = this.minimapCanvas.height;
+    const now = Date.now();
 
-    // Pitch black background for unexplored darkness
-    ctx.fillStyle = '#06080e';
-    ctx.fillRect(0, 0, w, h);
+    // Update footer indicators
+    const activeMobs = (this.game.enemies && this.game.enemies.length)
+      ? this.game.enemies.filter(e => !e.isDead).length
+      : 0;
+    const isStageCleared = activeMobs === 0;
 
-    const scaleX = w / dungeon.width;
-    const scaleY = h / dungeon.height;
+    if (this.radarEnemyCount) {
+      this.radarEnemyCount.textContent = `👾 ${activeMobs} Mob${activeMobs === 1 ? '' : 's'}`;
+    }
 
-    // Only draw EXPLORED tiles!
-    for (let y = 0; y < dungeon.height; y++) {
-      for (let x = 0; x < dungeon.width; x++) {
-        if (dungeon.isExplored(x, y)) {
-          const tile = dungeon.tiles[y][x];
-          if (tile === window.TILE.FLOOR) {
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(x * scaleX, y * scaleY, Math.ceil(scaleX), Math.ceil(scaleY));
-          } else if (tile === window.TILE.STAIRS) {
-            ctx.fillStyle = '#10b981';
-            ctx.fillRect(x * scaleX, y * scaleY, Math.ceil(scaleX * 1.5), Math.ceil(scaleY * 1.5));
-          } else if (tile === window.TILE.WALL) {
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(x * scaleX, y * scaleY, Math.ceil(scaleX), Math.ceil(scaleY));
+    let stairsExplored = false;
+    let stairsPos = null;
+    if (dungeon.stairsLocation) {
+      stairsExplored = dungeon.isExplored(dungeon.stairsLocation.x, dungeon.stairsLocation.y);
+      stairsPos = {
+        x: dungeon.stairsLocation.x * dungeon.tileSize + dungeon.tileSize / 2,
+        y: dungeon.stairsLocation.y * dungeon.tileSize + dungeon.tileSize / 2
+      };
+    } else {
+      for (let y = 0; y < dungeon.height; y++) {
+        for (let x = 0; x < dungeon.width; x++) {
+          if (dungeon.tiles[y][x] === window.TILE.STAIRS) {
+            stairsExplored = dungeon.isExplored(x, y);
+            stairsPos = {
+              x: x * dungeon.tileSize + dungeon.tileSize / 2,
+              y: y * dungeon.tileSize + dungeon.tileSize / 2
+            };
+            break;
+          }
+        }
+        if (stairsPos) break;
+      }
+    }
+
+    if (this.radarExitStatus) {
+      if (stairsExplored) {
+        if (!isStageCleared) {
+          this.radarExitStatus.textContent = `🔒 Sealed (${activeMobs} Left)`;
+          this.radarExitStatus.className = 'radar-exit-tag locked';
+        } else {
+          this.radarExitStatus.textContent = '✨ Portal Open!';
+          this.radarExitStatus.className = 'radar-exit-tag found';
+        }
+      } else {
+        if (!isStageCleared) {
+          this.radarExitStatus.textContent = '🚪 Exit Unseen';
+          this.radarExitStatus.className = 'radar-exit-tag';
+        } else {
+          this.radarExitStatus.textContent = '✨ Portal Unseen';
+          this.radarExitStatus.className = 'radar-exit-tag';
+        }
+      }
+    }
+
+    if (this.minimapMode === 'RADAR') {
+      // =============================================================
+      // MODE 1: TACTICAL CIRCULAR SCAN RADAR (Centered on Hero)
+      // =============================================================
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#06080e';
+      ctx.fillRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const rMax = w * 0.46; // radius of circular radar disc
+
+      // Clip to circular radar boundary
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, rMax, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Deep Space / Radar Grid Background Gradient
+      const bgGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, rMax);
+      bgGrad.addColorStop(0, '#0f172a');
+      bgGrad.addColorStop(0.65, '#070b14');
+      bgGrad.addColorStop(1, '#020408');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Range Tiles & Zoom
+      const baseTiles = 18;
+      const visibleTileRadius = baseTiles / (this.radarZoom || 1.0);
+      const scale = rMax / visibleTileRadius;
+
+      // Concentric Range Rings
+      ctx.save();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      [0.33, 0.66, 0.98].forEach(fraction => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, rMax * fraction, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      // Reticle Crosshairs
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.10)';
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(cx - rMax, cy);
+      ctx.lineTo(cx + rMax, cy);
+      ctx.moveTo(cx, cy - rMax);
+      ctx.lineTo(cx, cy + rMax);
+      ctx.stroke();
+      ctx.restore();
+
+      // Explored Dungeon Geometry Around Player
+      const minTx = Math.max(0, Math.floor((player.x - visibleTileRadius * dungeon.tileSize) / dungeon.tileSize) - 1);
+      const maxTx = Math.min(dungeon.width - 1, Math.ceil((player.x + visibleTileRadius * dungeon.tileSize) / dungeon.tileSize) + 1);
+      const minTy = Math.max(0, Math.floor((player.y - visibleTileRadius * dungeon.tileSize) / dungeon.tileSize) - 1);
+      const maxTy = Math.min(dungeon.height - 1, Math.ceil((player.y + visibleTileRadius * dungeon.tileSize) / dungeon.tileSize) + 1);
+
+      for (let ty = minTy; ty <= maxTy; ty++) {
+        for (let tx = minTx; tx <= maxTx; tx++) {
+          if (dungeon.isExplored(tx, ty)) {
+            const tile = dungeon.tiles[ty][tx];
+            const worldX = tx * dungeon.tileSize + dungeon.tileSize / 2;
+            const worldY = ty * dungeon.tileSize + dungeon.tileSize / 2;
+            const rx = cx + ((worldX - player.x) / dungeon.tileSize) * scale;
+            const ry = cy + ((worldY - player.y) / dungeon.tileSize) * scale;
+            const tileSizeScaled = Math.ceil(scale) + 0.5;
+
+            if (tile === window.TILE.FLOOR) {
+              ctx.fillStyle = '#1e293b';
+              ctx.fillRect(rx - scale / 2, ry - scale / 2, tileSizeScaled, tileSizeScaled);
+            } else if (tile === window.TILE.WALL) {
+              ctx.fillStyle = '#334155';
+              ctx.fillRect(rx - scale / 2, ry - scale / 2, tileSizeScaled, tileSizeScaled);
+            } else if (tile === window.TILE.STAIRS) {
+              // Discovered Stairs
+              ctx.fillStyle = isStageCleared ? '#10b981' : '#ef4444';
+              ctx.fillRect(rx - scale / 2, ry - scale / 2, tileSizeScaled, tileSizeScaled);
+              // Pulsing beacon ring
+              const stairPulse = (Math.sin(now / 200) + 1) * 0.5;
+              ctx.strokeStyle = isStageCleared
+                ? `rgba(52, 211, 153, ${0.4 + stairPulse * 0.5})`
+                : `rgba(239, 68, 68, ${0.4 + stairPulse * 0.5})`;
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.arc(rx, ry, scale * (0.8 + stairPulse * 0.4), 0, Math.PI * 2);
+              ctx.stroke();
+            }
           }
         }
       }
-    }
 
-    // Draw explored shrines
-    if (this.game.shrines) {
-      this.game.shrines.forEach(s => {
-        const tx = Math.floor(s.x / dungeon.tileSize);
-        const ty = Math.floor(s.y / dungeon.tileSize);
-        if (dungeon.isExplored(tx, ty)) {
-          ctx.fillStyle = s.used ? '#64748b' : '#38bdf8';
-          const sx = (s.x / dungeon.tileSize) * scaleX;
-          const sy = (s.y / dungeon.tileSize) * scaleY;
-          ctx.fillRect(sx - 2, sy - 2, 4, 4);
+      // Breakable Urns
+      if (this.game.urns) {
+        this.game.urns.forEach(u => {
+          if (!u.broken) {
+            const tx = Math.floor(u.x / dungeon.tileSize);
+            const ty = Math.floor(u.y / dungeon.tileSize);
+            if (dungeon.isExplored(tx, ty)) {
+              const rx = cx + ((u.x - player.x) / dungeon.tileSize) * scale;
+              const ry = cy + ((u.y - player.y) / dungeon.tileSize) * scale;
+              ctx.fillStyle = '#b45309';
+              ctx.beginPath();
+              ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        });
+      }
+
+      // Shrines
+      if (this.game.shrines) {
+        this.game.shrines.forEach(s => {
+          const tx = Math.floor(s.x / dungeon.tileSize);
+          const ty = Math.floor(s.y / dungeon.tileSize);
+          if (dungeon.isExplored(tx, ty)) {
+            const rx = cx + ((s.x - player.x) / dungeon.tileSize) * scale;
+            const ry = cy + ((s.y - player.y) / dungeon.tileSize) * scale;
+            ctx.fillStyle = s.used ? '#64748b' : '#38bdf8';
+            ctx.shadowColor = s.used ? 'transparent' : '#38bdf8';
+            ctx.shadowBlur = s.used ? 0 : 6;
+            ctx.beginPath();
+            ctx.moveTo(rx, ry - 3.5);
+            ctx.lineTo(rx + 3.5, ry);
+            ctx.lineTo(rx, ry + 3.5);
+            ctx.lineTo(rx - 3.5, ry);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        });
+      }
+
+      // Chests
+      dungeon.chests.forEach(c => {
+        const tx = Math.floor(c.x / dungeon.tileSize);
+        const ty = Math.floor(c.y / dungeon.tileSize);
+        if (!c.opened && dungeon.isExplored(tx, ty)) {
+          const rx = cx + ((c.x - player.x) / dungeon.tileSize) * scale;
+          const ry = cy + ((c.y - player.y) / dungeon.tileSize) * scale;
+          ctx.fillStyle = '#f59e0b';
+          ctx.shadowColor = '#fbbf24';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.rect(rx - 2.5, ry - 2.5, 5, 5);
+          ctx.fill();
+          ctx.shadowBlur = 0;
         }
       });
-    }
 
-    // Draw merchant if explored
-    if (this.game.merchant) {
-      const mx = Math.floor(this.game.merchant.x / dungeon.tileSize);
-      const my = Math.floor(this.game.merchant.y / dungeon.tileSize);
-      if (dungeon.isExplored(mx, my)) {
-        ctx.fillStyle = '#fbbf24';
-        const msx = (this.game.merchant.x / dungeon.tileSize) * scaleX;
-        const msy = (this.game.merchant.y / dungeon.tileSize) * scaleY;
-        ctx.beginPath();
-        ctx.arc(msx, msy, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Draw chests if explored
-    dungeon.chests.forEach(c => {
-      const tx = Math.floor(c.x / dungeon.tileSize);
-      const ty = Math.floor(c.y / dungeon.tileSize);
-      if (!c.opened && dungeon.isExplored(tx, ty)) {
-        ctx.fillStyle = '#f59e0b';
-        const cx = (c.x / dungeon.tileSize) * scaleX;
-        const cy = (c.y / dungeon.tileSize) * scaleY;
-        ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
-      }
-    });
-
-    // Draw enemies if within explored tiles
-    this.game.enemies.forEach(e => {
-      if (!e.isDead) {
-        const etx = Math.floor(e.x / dungeon.tileSize);
-        const ety = Math.floor(e.y / dungeon.tileSize);
-        if (dungeon.isExplored(etx, ety)) {
-          ctx.fillStyle = e.isBoss ? '#dc2626' : (e.isElite ? '#f97316' : '#f87171');
-          const ex = (e.x / dungeon.tileSize) * scaleX;
-          const ey = (e.y / dungeon.tileSize) * scaleY;
-          const sz = e.isBoss ? 5 : (e.isElite ? 3.5 : 2);
-          ctx.fillRect(ex - sz / 2, ey - sz / 2, sz, sz);
+      // Merchant
+      if (this.game.merchant) {
+        const mx = Math.floor(this.game.merchant.x / dungeon.tileSize);
+        const my = Math.floor(this.game.merchant.y / dungeon.tileSize);
+        if (dungeon.isExplored(mx, my)) {
+          const rx = cx + ((this.game.merchant.x - player.x) / dungeon.tileSize) * scale;
+          const ry = cy + ((this.game.merchant.y - player.y) / dungeon.tileSize) * scale;
+          ctx.fillStyle = '#fbbf24';
+          ctx.shadowColor = '#f59e0b';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(rx, ry, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
         }
       }
-    });
 
-    // Draw player
-    const px = (player.x / dungeon.tileSize) * scaleX;
-    const py = (player.y / dungeon.tileSize) * scaleY;
-    ctx.fillStyle = '#38bdf8';
+      // Enemies
+      this.game.enemies.forEach(e => {
+        if (!e.isDead) {
+          const etx = Math.floor(e.x / dungeon.tileSize);
+          const ety = Math.floor(e.y / dungeon.tileSize);
+          if (dungeon.isExplored(etx, ety)) {
+            const rx = cx + ((e.x - player.x) / dungeon.tileSize) * scale;
+            const ry = cy + ((e.y - player.y) / dungeon.tileSize) * scale;
+
+            if (e.isBoss) {
+              // Boss Crimson Skull Blip
+              const bossPulse = (Math.sin(now / 150) + 1) * 0.5;
+              ctx.fillStyle = '#ef4444';
+              ctx.shadowColor = '#dc2626';
+              ctx.shadowBlur = 10;
+              ctx.beginPath();
+              ctx.arc(rx, ry, 5.5 + bossPulse * 1.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#fca5a5';
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+              ctx.shadowBlur = 0;
+            } else if (e.isElite) {
+              // Elite Champion Blip (Amber Diamond)
+              ctx.fillStyle = '#f59e0b';
+              ctx.shadowColor = '#fbbf24';
+              ctx.shadowBlur = 8;
+              ctx.beginPath();
+              ctx.moveTo(rx, ry - 4.5);
+              ctx.lineTo(rx + 4, ry);
+              ctx.lineTo(rx, ry + 4.5);
+              ctx.lineTo(rx - 4, ry);
+              ctx.closePath();
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            } else {
+              // Standard Mob Blip (Red Dot)
+              ctx.fillStyle = '#f87171';
+              ctx.beginPath();
+              ctx.arc(rx, ry, 2.8, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      });
+
+      // Rotating Radar Scanline / Sweep Beam
+      this.radarSweepAngle = (now / 1600) * (Math.PI * 2);
+      ctx.save();
+      const sweepAngle = this.radarSweepAngle;
+      const sweepArc = 0.55;
+
+      // Sweep Sector
+      const sweepGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, rMax);
+      sweepGrad.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+      sweepGrad.addColorStop(0.8, 'rgba(56, 189, 248, 0.08)');
+      sweepGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+      ctx.fillStyle = sweepGrad;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, rMax, sweepAngle - sweepArc, sweepAngle, false);
+      ctx.closePath();
+      ctx.fill();
+
+      // Leading sharp scan beam line
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(sweepAngle) * rMax, cy + Math.sin(sweepAngle) * rMax);
+      ctx.stroke();
+      ctx.restore();
+
+      // Player Vision Heading Cone & Beacon (At Radar Center)
+      const coneLength = 38;
+      const coneAngle = player.angle || 0;
+      const coneSpread = 0.42;
+      const coneGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, coneLength);
+      coneGrad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+      coneGrad.addColorStop(0.6, 'rgba(56, 189, 248, 0.15)');
+      coneGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      ctx.fillStyle = coneGrad;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, coneLength, coneAngle - coneSpread, coneAngle + coneSpread);
+      ctx.closePath();
+      ctx.fill();
+
+      // Player Heading Chevron Arrow
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(coneAngle);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.shadowColor = '#0284c7';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(7, 0);
+      ctx.lineTo(-5, -4.5);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-5, 4.5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Player Center Core Dot
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, 0, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // End of clipped disc
+      ctx.restore();
+
+      // Outer Bezel Rim & Ticks
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rMax, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Compass Cardinal Directions (N, S, E, W)
+      ctx.font = 'bold 10px "Outfit", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('N', cx, cy - rMax + 10);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('S', cx, cy + rMax - 10);
+      ctx.fillText('E', cx + rMax - 10, cy);
+      ctx.fillText('W', cx - rMax + 10, cy);
+
+      // Off-Screen Objective Direction Arrows
+      // 1. Exit Stairs
+      if (stairsExplored && stairsPos) {
+        const dist = Math.hypot(stairsPos.x - player.x, stairsPos.y - player.y);
+        if (dist > visibleTileRadius * dungeon.tileSize) {
+          const angle = Math.atan2(stairsPos.y - player.y, stairsPos.x - player.x);
+          const ax = cx + Math.cos(angle) * (rMax - 10);
+          const ay = cy + Math.sin(angle) * (rMax - 10);
+          this.drawRadarObjectiveArrow(
+            ctx,
+            ax,
+            ay,
+            angle,
+            isStageCleared ? '#10b981' : '#ef4444',
+            isStageCleared ? 'PORTAL' : 'SEALED'
+          );
+        }
+      }
+
+      // 2. Merchant
+      if (this.game.merchant) {
+        const mx = this.game.merchant.x;
+        const my = this.game.merchant.y;
+        if (dungeon.isExplored(Math.floor(mx / dungeon.tileSize), Math.floor(my / dungeon.tileSize))) {
+          const dist = Math.hypot(mx - player.x, my - player.y);
+          if (dist > visibleTileRadius * dungeon.tileSize) {
+            const angle = Math.atan2(my - player.y, mx - player.x);
+            const ax = cx + Math.cos(angle) * (rMax - 10);
+            const ay = cy + Math.sin(angle) * (rMax - 10);
+            this.drawRadarObjectiveArrow(ctx, ax, ay, angle, '#fbbf24', 'SHOP');
+          }
+        }
+      }
+
+      // 3. Boss
+      if (this.game.bossEnemy && !this.game.bossEnemy.isDead) {
+        const bx = this.game.bossEnemy.x;
+        const by = this.game.bossEnemy.y;
+        if (dungeon.isExplored(Math.floor(bx / dungeon.tileSize), Math.floor(by / dungeon.tileSize))) {
+          const dist = Math.hypot(bx - player.x, by - player.y);
+          if (dist > visibleTileRadius * dungeon.tileSize) {
+            const angle = Math.atan2(by - player.y, bx - player.x);
+            const ax = cx + Math.cos(angle) * (rMax - 10);
+            const ay = cy + Math.sin(angle) * (rMax - 10);
+            this.drawRadarObjectiveArrow(ctx, ax, ay, angle, '#ef4444', 'BOSS');
+          }
+        }
+      }
+
+    } else {
+      // =============================================================
+      // MODE 2: FULL TACTICAL FLOOR MAP
+      // =============================================================
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#06080e';
+      ctx.fillRect(0, 0, w, h);
+
+      const pad = 10;
+      const mapW = w - pad * 2;
+      const mapH = h - pad * 2;
+      const scaleX = mapW / dungeon.width;
+      const scaleY = mapH / dungeon.height;
+
+      // Draw all explored tiles with high contrast
+      for (let y = 0; y < dungeon.height; y++) {
+        for (let x = 0; x < dungeon.width; x++) {
+          if (dungeon.isExplored(x, y)) {
+            const tile = dungeon.tiles[y][x];
+            const px = pad + x * scaleX;
+            const py = pad + y * scaleY;
+            const tw = Math.ceil(scaleX);
+            const th = Math.ceil(scaleY);
+
+            if (tile === window.TILE.FLOOR) {
+              ctx.fillStyle = '#1e293b';
+              ctx.fillRect(px, py, tw, th);
+            } else if (tile === window.TILE.WALL) {
+              ctx.fillStyle = '#334155';
+              ctx.fillRect(px, py, tw, th);
+            } else if (tile === window.TILE.STAIRS) {
+              ctx.fillStyle = isStageCleared ? '#10b981' : '#ef4444';
+              ctx.fillRect(px, py, Math.ceil(scaleX * 1.5), Math.ceil(scaleY * 1.5));
+            }
+          }
+        }
+      }
+
+      // Shrines
+      if (this.game.shrines) {
+        this.game.shrines.forEach(s => {
+          const tx = Math.floor(s.x / dungeon.tileSize);
+          const ty = Math.floor(s.y / dungeon.tileSize);
+          if (dungeon.isExplored(tx, ty)) {
+            ctx.fillStyle = s.used ? '#64748b' : '#38bdf8';
+            ctx.fillRect(pad + tx * scaleX - 2, pad + ty * scaleY - 2, 4, 4);
+          }
+        });
+      }
+
+      // Merchant
+      if (this.game.merchant) {
+        const mx = Math.floor(this.game.merchant.x / dungeon.tileSize);
+        const my = Math.floor(this.game.merchant.y / dungeon.tileSize);
+        if (dungeon.isExplored(mx, my)) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(pad + mx * scaleX, pad + my * scaleY, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Chests
+      dungeon.chests.forEach(c => {
+        const tx = Math.floor(c.x / dungeon.tileSize);
+        const ty = Math.floor(c.y / dungeon.tileSize);
+        if (!c.opened && dungeon.isExplored(tx, ty)) {
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(pad + tx * scaleX - 1.5, pad + ty * scaleY - 1.5, 3, 3);
+        }
+      });
+
+      // Enemies
+      this.game.enemies.forEach(e => {
+        if (!e.isDead) {
+          const etx = Math.floor(e.x / dungeon.tileSize);
+          const ety = Math.floor(e.y / dungeon.tileSize);
+          if (dungeon.isExplored(etx, ety)) {
+            ctx.fillStyle = e.isBoss ? '#dc2626' : (e.isElite ? '#f97316' : '#f87171');
+            const ex = pad + (e.x / dungeon.tileSize) * scaleX;
+            const ey = pad + (e.y / dungeon.tileSize) * scaleY;
+            const sz = e.isBoss ? 5 : (e.isElite ? 3.5 : 2);
+            ctx.fillRect(ex - sz / 2, ey - sz / 2, sz, sz);
+          }
+        }
+      });
+
+      // Player Location on Full Map with Pulsing Ring
+      const px = pad + (player.x / dungeon.tileSize) * scaleX;
+      const py = pad + (player.y / dungeon.tileSize) * scaleY;
+      const pingPulse = (now / 700) % 1.0;
+
+      ctx.strokeStyle = `rgba(56, 189, 248, ${1 - pingPulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 4 + pingPulse * 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tactical Header
+      ctx.font = 'bold 9px "Cinzel", "Outfit", sans-serif';
+      ctx.fillStyle = '#c084fc';
+      ctx.textAlign = 'left';
+      ctx.fillText(`FLOOR ${dungeon.floor} MAP`, pad + 2, pad + 8);
+    }
+  }
+
+  drawRadarObjectiveArrow(ctx, x, y, angle, color, label) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+
+    // Arrow Chevron
     ctx.beginPath();
-    ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+    ctx.moveTo(4, 0);
+    ctx.lineTo(-3, -3.5);
+    ctx.lineTo(-1, 0);
+    ctx.lineTo(-3, 3.5);
+    ctx.closePath();
     ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   // -------------------------------------------------------------
@@ -899,7 +1530,11 @@ class UIManager {
   showGameOver(stats) {
     if (this.gameOverScreen) {
       if (this.statsSummary) {
+        const diffName = stats.difficulty || this.game.difficulty || 'NORMAL';
+        const isHardcore = stats.hardcore !== undefined ? stats.hardcore : this.game.hardcore;
         this.statsSummary.innerHTML = `
+          ${isHardcore ? '<div class="hardcore-death-notice" style="color: #ef4444; font-weight: bold; margin-bottom: 8px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); letter-spacing: 0.5px;">💀 HARDCORE CASUALTY — RUN PERMANENTLY ERASED 💀</div>' : ''}
+          <div>Difficulty: <strong style="color: #38bdf8;">${diffName}${isHardcore ? ' (Hardcore)' : ''}</strong></div>
           <div>Floor Reached: <strong>Depth ${stats.floor}</strong></div>
           <div>Hero Level: <strong>${stats.level}</strong></div>
           <div>Monsters Defeated: <strong>${stats.monstersDefeated}</strong></div>
@@ -911,11 +1546,12 @@ class UIManager {
     }
   }
 
-  showVictory(shardsEarned = 0) {
+  showVictory(shardsEarned = 0, difficulty = 'NORMAL', hardcore = false) {
     if (this.victoryScreen) {
       if (this.victoryStatsSummary) {
         this.victoryStatsSummary.innerHTML = `
-          <div>Abyss Overlord Slain!</div>
+          <div style="font-size: 1.15rem; font-weight: 700; color: #fbbf24; margin-bottom: 6px;">Abyss Overlord Slain!</div>
+          <div style="color: #38bdf8; margin-bottom: 4px;">Difficulty Conquered: <strong>${difficulty}${hardcore ? ' • 💀 HARDCORE CHAMPION' : ''}</strong></div>
           <div class="summary-shards-row">Victory Soul Shards Harvested: <strong>+${shardsEarned} 💎</strong></div>
         `;
       }

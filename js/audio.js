@@ -556,6 +556,25 @@ class SoundEngine {
     osc.start(now);
     osc.stop(now + 0.23);
   }
+
+  // Tactical Radar Mode Toggle Ping
+  playRadarPing() {
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1046.5, now); // C6
+      osc.frequency.exponentialRampToValueAtTime(1567.98, now + 0.06); // G6
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now);
+      osc.stop(now + 0.23);
+    } catch (e) {}
+  }
 }
 
 window.soundEngine = new SoundEngine();

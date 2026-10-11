@@ -240,6 +240,8 @@ class StorageManager {
     const runData = {
       floorNumber: game.floorNumber,
       monstersDefeated: game.monstersDefeated,
+      difficulty: game.difficulty || 'NORMAL',
+      hardcore: !!game.hardcore,
       savedAt: Date.now(),
       playerData: game.player.serialize(),
       shardsEarnedThisRun: game.player.shardsEarnedThisRun || 0
@@ -298,6 +300,8 @@ class StorageManager {
       gold: summary.gold,
       shards: summary.shardsEarned || 0,
       kills: summary.monstersDefeated,
+      difficulty: summary.difficulty || 'NORMAL',
+      hardcore: !!summary.hardcore,
       outcome: summary.outcome || 'PERISHED'
     };
 
@@ -356,7 +360,9 @@ class StorageManager {
       soundMuted: false,
       volume: 0.8,
       screenShake: true,
-      vibration: true
+      vibration: true,
+      difficulty: 'NORMAL',
+      hardcore: false
     };
     const stored = this.getJSON(this.KEYS.SETTINGS, {});
     return Object.assign({}, defaultSettings, stored);
