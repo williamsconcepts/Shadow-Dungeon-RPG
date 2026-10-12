@@ -4,6 +4,56 @@
 //           Hall of Records, Bestiary Codex & System Settings.
 // ==========================================================================
 
+// Global Difficulty Definitions (guaranteed loaded early for all UI and entities)
+const GLOBAL_DIFFICULTIES = {
+  NORMAL: {
+    id: 'NORMAL',
+    name: 'Adventurer',
+    hpMult: 1.0,
+    dmgMult: 1.0,
+    speedMult: 1.0,
+    eliteChance: 0.20,
+    goldMult: 1.0,
+    shardMult: 1.0,
+    xpMult: 1.0,
+    badgeClass: 'diff-chip normal',
+    badgeText: '🛡️ Adventurer'
+  },
+  NIGHTMARE: {
+    id: 'NIGHTMARE',
+    name: 'Nightmare',
+    hpMult: 1.55,
+    dmgMult: 1.40,
+    speedMult: 1.15,
+    eliteChance: 0.45,
+    goldMult: 1.50,
+    shardMult: 1.50,
+    xpMult: 1.40,
+    badgeClass: 'diff-chip nightmare',
+    badgeText: '⚔️ Nightmare'
+  },
+  INFERNO: {
+    id: 'INFERNO',
+    name: 'Inferno',
+    hpMult: 2.30,
+    dmgMult: 1.95,
+    speedMult: 1.30,
+    eliteChance: 0.75,
+    goldMult: 2.20,
+    shardMult: 2.50,
+    xpMult: 2.00,
+    badgeClass: 'diff-chip inferno',
+    badgeText: '💀 Inferno'
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.DIFFICULTIES = window.DIFFICULTIES || GLOBAL_DIFFICULTIES;
+}
+if (typeof global !== 'undefined') {
+  global.DIFFICULTIES = global.DIFFICULTIES || GLOBAL_DIFFICULTIES;
+}
+
 class StorageManager {
   static KEYS = {
     RUN: 'shadow_dungeon_active_run_v1',

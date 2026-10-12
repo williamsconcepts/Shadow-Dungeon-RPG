@@ -1,6 +1,6 @@
 // Game Engine & Loop Orchestrator
 
-const DIFFICULTIES = {
+const DIFFICULTIES = (typeof window !== 'undefined' && window.DIFFICULTIES) ? window.DIFFICULTIES : {
   NORMAL: {
     id: 'NORMAL',
     name: 'Adventurer',
@@ -102,7 +102,7 @@ class Game {
     this.monstersDefeated = 0;
     this.state = 'START'; // 'START', 'PLAYING', 'PAUSED', 'TRANSITION', 'GAME_OVER', 'VICTORY'
 
-    this.gamepad = new window.GamepadManager(this);
+    this.gamepad = (typeof window !== 'undefined' && typeof window.GamepadManager === 'function') ? new window.GamepadManager(this) : null;
 
     this.input = {
       keys: {},
@@ -145,7 +145,7 @@ class Game {
     this.setupInput();
     this.setupJoystick();
 
-    this.ui = new window.UIManager(this);
+    this.ui = (typeof window !== 'undefined' && typeof window.UIManager === 'function') ? new window.UIManager(this) : null;
   }
 
   getDifficultyMultipliers() {
@@ -1559,23 +1559,40 @@ class Game {
     this.update(dt);
     this.render();
 
-    requestAnimationFrame((t) => this.loop(t));
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame((t) => this.loop(t));
+    }
   }
 
   start() {
-    requestAnimationFrame((t) => this.loop(t));
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame((t) => this.loop(t));
+    }
   }
 }
 
 window.Game = Game;
-window.addEventListener('DOMContentLoaded', () => {
+
+function initShadowDungeon() {
+  if (typeof window === 'undefined' || window.gameInstance) return;
+  if (typeof document === 'undefined') return;
+  if (typeof document.getElementById !== 'function' || typeof document.createElement !== 'function') return;
+  const canvas = document.getElementById('game-canvas');
+  if (!canvas || typeof canvas.getContext !== 'function') {
+    if (typeof setTimeout === 'function' && document.readyState === 'loading') {
+      setTimeout(initShadowDungeon, 30);
+    }
+    return;
+  }
   window.gameInstance = new Game();
   window.gameInstance.start();
+}
 
-  const startBtn = document.getElementById('btn-start-game');
-  if (startBtn) {
-    startBtn.addEventListener('click', () => {
-      window.gameInstance.startNewGame();
-    });
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initShadowDungeon);
+  } else {
+    // DOM already loaded or interactive on deployment / CDN cache
+    initShadowDungeon();
   }
-});
+}

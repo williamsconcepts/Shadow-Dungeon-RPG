@@ -11,7 +11,7 @@ class UIManager {
     // HUD Elements
     this.hpBarFill = document.getElementById('hp-bar-fill');
     this.hpBarGhost = document.getElementById('hp-bar-ghost');
-    this.hpWrapper = document.querySelector('.hp-wrapper');
+    this.hpWrapper = typeof document.querySelector === 'function' ? document.querySelector('.hp-wrapper') : null;
     this.hpText = document.getElementById('hp-text');
     this.manaBarFill = document.getElementById('mana-bar-fill');
     this.manaBarGhost = document.getElementById('mana-bar-ghost');
@@ -82,7 +82,7 @@ class UIManager {
     // Minimap / Tactical Radar Elements
     this.minimapFrame = document.getElementById('minimap-frame');
     this.minimapCanvas = document.getElementById('minimap-canvas');
-    this.minimapCtx = this.minimapCanvas ? this.minimapCanvas.getContext('2d') : null;
+    this.minimapCtx = (this.minimapCanvas && typeof this.minimapCanvas.getContext === 'function') ? this.minimapCanvas.getContext('2d') : null;
     this.radarModeTag = document.getElementById('radar-mode-tag');
     this.btnToggleMapMode = document.getElementById('btn-toggle-map-mode');
     this.btnRadarZoom = document.getElementById('btn-radar-zoom');
@@ -266,27 +266,42 @@ class UIManager {
 
     if (hasRun && this.btnResumeGame) {
       const run = window.StorageManager.getActiveRun();
-      activeDiff = run.difficulty || 'NORMAL';
-      isHardcore = !!run.hardcore;
+      if (run && run.playerData) {
+        activeDiff = run.difficulty || 'NORMAL';
+        isHardcore = !!run.hardcore;
+        const pData = run.playerData || {};
+        const floorNum = run.floorNumber || 1;
+        const pLevel = pData.level || 1;
+        const pHp = Math.ceil(pData.hp ?? 100);
+        const pMaxHp = pData.maxHp ?? 100;
+        const pGold = pData.gold ?? 0;
+        const pShards = run.shardsEarnedThisRun || 0;
+        const eqCount = Object.values(pData.equipped || {}).filter(Boolean).length;
+        const invCount = (pData.inventory || []).length;
 
-      this.btnResumeGame.classList.remove('hidden');
-      this.btnResumeGame.innerHTML = `<span class="btn-sparkle">✦</span> RESUME EXPEDITION (Depth ${run.floorNumber} • Lv ${run.playerData.level}) <span class="btn-sparkle">✦</span>`;
+        this.btnResumeGame.classList.remove('hidden');
+        this.btnResumeGame.innerHTML = `<span class="btn-sparkle">✦</span> RESUME EXPEDITION (Depth ${floorNum} • Lv ${pLevel}) <span class="btn-sparkle">✦</span>`;
 
-      if (this.btnStartGame) {
-        this.btnStartGame.innerHTML = `<span class="btn-sparkle">⚔</span> NEW EXPEDITION <span class="btn-sparkle">⚔</span>`;
-      }
+        if (this.btnStartGame) {
+          this.btnStartGame.innerHTML = `<span class="btn-sparkle">⚔</span> NEW EXPEDITION <span class="btn-sparkle">⚔</span>`;
+        }
 
-      if (this.activeRunPreview && this.activeRunStats) {
-        this.activeRunPreview.classList.remove('hidden');
-        const eqCount = Object.values(run.playerData.equipped || {}).filter(Boolean).length;
-        const invCount = (run.playerData.inventory || []).length;
-        this.activeRunStats.innerHTML = `
-          <span><strong>Depth:</strong> Floor ${run.floorNumber}</span>
-          <span><strong>Difficulty:</strong> ${activeDiff}${isHardcore ? ' • 💀 HARDCORE' : ''}</span>
-          <span><strong>Hero:</strong> Level ${run.playerData.level} (${Math.ceil(run.playerData.hp)}/${run.playerData.maxHp} HP)</span>
-          <span><strong>Spoils:</strong> ${run.playerData.gold} Gold • ${run.shardsEarnedThisRun || 0} 💎</span>
-          <span><strong>Gear:</strong> ${eqCount} Equipped, ${invCount} in Pack</span>
-        `;
+        if (this.activeRunPreview && this.activeRunStats) {
+          this.activeRunPreview.classList.remove('hidden');
+          this.activeRunStats.innerHTML = `
+            <span><strong>Depth:</strong> Floor ${floorNum}</span>
+            <span><strong>Difficulty:</strong> ${activeDiff}${isHardcore ? ' • 💀 HARDCORE' : ''}</span>
+            <span><strong>Hero:</strong> Level ${pLevel} (${pHp}/${pMaxHp} HP)</span>
+            <span><strong>Spoils:</strong> ${pGold} Gold • ${pShards} 💎</span>
+            <span><strong>Gear:</strong> ${eqCount} Equipped, ${invCount} in Pack</span>
+          `;
+        }
+      } else {
+        if (this.btnResumeGame) this.btnResumeGame.classList.add('hidden');
+        if (this.btnStartGame) {
+          this.btnStartGame.innerHTML = `<span class="btn-sparkle">✦</span> ENTER THE DUNGEON <span class="btn-sparkle">✦</span>`;
+        }
+        if (this.activeRunPreview) this.activeRunPreview.classList.add('hidden');
       }
     } else {
       if (this.btnResumeGame) this.btnResumeGame.classList.add('hidden');
@@ -1720,15 +1735,22 @@ class UIManager {
       }
 
       if (this.statsSummary) {
-        const diffName = stats.difficulty || (this.game && this.game.difficulty) || 'NORMAL';
+        const s = stats || {};
+        const diffName = s.difficulty || (this.game && this.game.difficulty) || 'NORMAL';
+        const floorVal = s.floor || (this.game ? this.game.floorNumber : 1);
+        const levelVal = s.level || (this.game && this.game.player ? this.game.player.level : 1);
+        const killsVal = s.monstersDefeated ?? (this.game ? this.game.monstersDefeated : 0);
+        const goldVal = s.gold ?? (this.game && this.game.player ? this.game.player.gold : 0);
+        const shardsVal = s.shardsEarned ?? (this.game && this.game.player ? this.game.player.shardsEarnedThisRun : 0);
+
         this.statsSummary.innerHTML = `
           ${isHardcore ? '<div class="hardcore-death-notice" style="color: #ef4444; font-weight: bold; margin-bottom: 8px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); letter-spacing: 0.5px;">💀 HARDCORE CASUALTY — RUN PERMANENTLY ERASED 💀</div>' : ''}
           <div>Difficulty: <strong style="color: #38bdf8;">${diffName}${isHardcore ? ' (Hardcore)' : ''}</strong></div>
-          <div>Floor Reached: <strong>Depth ${stats.floor}</strong></div>
-          <div>Hero Level: <strong>${stats.level}</strong></div>
-          <div>Monsters Defeated: <strong>${stats.monstersDefeated}</strong></div>
-          <div>Gold Accumulated: <strong>${stats.gold} 🪙</strong></div>
-          <div class="summary-shards-row">Soul Shards Harvested: <strong>+${stats.shardsEarned || 0} 💎</strong></div>
+          <div>Floor Reached: <strong>Depth ${floorVal}</strong></div>
+          <div>Hero Level: <strong>${levelVal}</strong></div>
+          <div>Monsters Defeated: <strong>${killsVal}</strong></div>
+          <div>Gold Accumulated: <strong>${goldVal} 🪙</strong></div>
+          <div class="summary-shards-row">Soul Shards Harvested: <strong>+${shardsVal} 💎</strong></div>
         `;
       }
       this.gameOverScreen.classList.remove('hidden');
