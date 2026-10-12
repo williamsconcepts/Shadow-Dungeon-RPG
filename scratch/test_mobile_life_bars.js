@@ -82,6 +82,17 @@ function createMockEl(id, className = '') {
       },
       contains: (c) => classListSet.has(c)
     },
+    getContext: () => ({
+      save: () => {}, restore: () => {}, translate: () => {}, rotate: () => {}, scale: () => {},
+      clip: () => {}, closePath: () => {}, roundRect: () => {}, moveTo: () => {}, lineTo: () => {},
+      setLineDash: () => {},
+      fillText: () => {}, measureText: () => ({ width: 10 }),
+      createRadialGradient: () => ({ addColorStop: () => {} }),
+      createLinearGradient: () => ({ addColorStop: () => {} }),
+      fillRect: () => {}, clearRect: () => {}, beginPath: () => {}, arc: () => {}, fill: () => {}, stroke: () => {}
+    }),
+    addEventListener: () => {},
+    removeEventListener: () => {},
     querySelector: () => null
   };
 }
@@ -133,6 +144,8 @@ global.window = {
   document: global.document,
   innerWidth: 390,
   innerHeight: 844,
+  addEventListener: () => {},
+  removeEventListener: () => {},
   StorageManager: { getProfile: () => ({ soulShards: 42 }) }
 };
 
@@ -143,7 +156,13 @@ require('../js/dungeon.js');
 require('../js/entities.js');
 require('../js/ui.js');
 
-const ui = new global.window.UIManager({ difficulty: 'NORMAL', hardcore: false });
+const ui = new global.window.UIManager({
+  difficulty: 'NORMAL',
+  hardcore: false,
+  enemies: [],
+  merchant: null,
+  shrines: []
+});
 
 const dummyPlayer = {
   hp: 300,
@@ -159,7 +178,18 @@ const dummyPlayer = {
   skills: {}
 };
 
-const dummyDungeon = { floor: 1, isBossFloor: false };
+const dummyDungeon = {
+  floor: 1,
+  isBossFloor: false,
+  chests: [],
+  urns: [],
+  stairs: { x: 0, y: 0 },
+  width: 20,
+  height: 20,
+  tileSize: 48,
+  tiles: Array.from({ length: 20 }, () => Array(20).fill(1)),
+  grid: Array.from({ length: 20 }, () => Array(20).fill(1))
+};
 
 // Update HUD at full health
 ui.updateHUD(dummyPlayer, dummyDungeon, null);
@@ -234,6 +264,9 @@ const mockCtx = {
   moveTo() {},
   lineTo() {},
   closePath() {},
+  quadraticCurveTo() {},
+  bezierCurveTo() {},
+  setLineDash() {},
   fillRect() {},
   strokeRect() {},
   fillText() {},
@@ -248,7 +281,7 @@ const playerObj = new PlayerClass(100, 100, 'WARRIOR');
 mockCtx.calls = [];
 playerObj.hp = playerObj.maxHp;
 playerObj.render(mockCtx);
-const fullHpRoundRects = mockCtx.calls.filter(c => c.includes('roundRect'));
+const fullHpRoundRects = mockCtx.calls.filter(c => c.includes('roundRect') && !c.includes('7,10,2'));
 assert.strictEqual(fullHpRoundRects.length, 0, 'Full HP player must NOT render overhead health bar');
 console.log('✅ PASSED: Full HP player keeps screen clean (no overhead bar)');
 
@@ -256,7 +289,7 @@ console.log('✅ PASSED: Full HP player keeps screen clean (no overhead bar)');
 mockCtx.calls = [];
 playerObj.hp = playerObj.maxHp * 0.7; // 70% HP
 playerObj.render(mockCtx);
-const damagedRoundRects = mockCtx.calls.filter(c => c.includes('roundRect'));
+const damagedRoundRects = mockCtx.calls.filter(c => c.includes('roundRect') && !c.includes('7,10,2'));
 assert(damagedRoundRects.length >= 2, 'Damaged player must render background and fill overhead rounded rects');
 // Check emerald fill for > 50% HP
 const hasEmeraldFill = mockCtx.calls.some(c => c.includes('fill(#10b981)'));

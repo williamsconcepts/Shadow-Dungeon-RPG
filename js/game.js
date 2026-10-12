@@ -108,8 +108,10 @@ class Game {
       keys: {},
       mouseScreen: { x: 0, y: 0 },
       mouseWorld: { x: 0, y: 0 },
+      mouseMoved: false,
       isTouchMode: false,
       joystick: null,
+      aimJoystick: null,
       gamepad: this.gamepad
     };
 
@@ -181,17 +183,39 @@ class Game {
 
     window.addEventListener('resize', resize);
     window.addEventListener('orientationchange', () => setTimeout(resize, 120));
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) resize(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (this.state === 'PLAYING') this.pauseGame();
+      } else {
+        resize();
+      }
+    });
+    window.addEventListener('blur', () => {
+      if (this.state === 'PLAYING') this.pauseGame();
+    });
     resize();
   }
 
   setupJoystick() {
-    const joystickArea = document.getElementById('joystick-container');
-    if (joystickArea && window.VirtualJoystick) {
-      this.input.joystick = new window.VirtualJoystick(joystickArea, {
+    const moveArea = document.getElementById('joystick-container');
+    if (moveArea && window.VirtualJoystick) {
+      this.input.joystick = new window.VirtualJoystick(moveArea, {
         maxRadius: 46,
         deadzone: 0.08,
+        side: 'left',
+        theme: 'move',
         allowLeftScreenTouch: true
+      });
+    }
+
+    const aimArea = document.getElementById('aim-joystick-container');
+    if (aimArea && window.VirtualJoystick) {
+      this.input.aimJoystick = new window.VirtualJoystick(aimArea, {
+        maxRadius: 46,
+        deadzone: 0.08,
+        side: 'right',
+        theme: 'aim',
+        allowLeftScreenTouch: false
       });
     }
   }
@@ -204,6 +228,17 @@ class Game {
       // Start audio on first interaction
       if (window.soundEngine && !window.soundEngine.isInitialized) {
         window.soundEngine.init();
+      }
+
+      // Handle pause toggles (Escape, P)
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        e.preventDefault();
+        if (this.state === 'PLAYING') {
+          this.pauseGame();
+        } else if (this.state === 'PAUSED') {
+          this.resumeGame();
+        }
+        return;
       }
 
       if (this.state !== 'PLAYING') return;
@@ -239,8 +274,11 @@ class Game {
       this.input.keys[e.code] = false;
     });
 
-    // Mouse aiming & attack
+    // Mouse aiming & attack (Desktop)
     this.canvas.addEventListener('mousemove', (e) => {
+      if (!this.input.isTouchMode) {
+        this.input.mouseMoved = true;
+      }
       this.input.mouseScreen.x = e.clientX;
       this.input.mouseScreen.y = e.clientY;
       this.input.mouseWorld.x = e.clientX + this.camera.x;
@@ -256,23 +294,11 @@ class Game {
       }
     });
 
-    // Mobile Canvas Touch Aiming (Right half touches update world aim)
-    const handleCanvasTouch = (e) => {
+    // Touch detection & audio unlock
+    const handleCanvasTouch = () => {
       this.input.isTouchMode = true;
       if (window.soundEngine && !window.soundEngine.isInitialized) {
         window.soundEngine.init();
-      }
-      if (e.touches && e.touches.length > 0) {
-        for (let i = 0; i < e.touches.length; i++) {
-          const t = e.touches[i];
-          if (t.clientX > window.innerWidth * 0.44) {
-            this.input.mouseScreen.x = t.clientX;
-            this.input.mouseScreen.y = t.clientY;
-            this.input.mouseWorld.x = t.clientX + this.camera.x;
-            this.input.mouseWorld.y = t.clientY + this.camera.y;
-            break;
-          }
-        }
       }
     };
     this.canvas.addEventListener('touchstart', handleCanvasTouch, { passive: true });
@@ -290,8 +316,14 @@ class Game {
   handleGamepadGameplay() {
     if (!this.gamepad || !this.gamepad.connected) return;
 
-    // Toggle Inventory with View/Back or Start/Menu
-    if (this.gamepad.isJustPressed('View') || this.gamepad.isJustPressed('Menu')) {
+    // Toggle Pause with Menu/Start
+    if (this.gamepad.isJustPressed('Menu') || this.gamepad.isJustPressed('Start')) {
+      this.togglePause();
+      return;
+    }
+
+    // Toggle Inventory with View/Back
+    if (this.gamepad.isJustPressed('View')) {
       this.ui.toggleInventory();
     }
 
@@ -511,6 +543,7 @@ class Game {
     document.getElementById('start-screen')?.classList.add('hidden');
     document.getElementById('hud')?.classList.remove('hidden');
     document.getElementById('mobile-controls')?.classList.remove('hidden');
+    this.ui.hidePauseModal?.();
 
     if (window.soundEngine) {
       window.soundEngine.init();
@@ -544,6 +577,7 @@ class Game {
     document.getElementById('start-screen')?.classList.add('hidden');
     document.getElementById('hud')?.classList.remove('hidden');
     document.getElementById('mobile-controls')?.classList.remove('hidden');
+    this.ui.hidePauseModal?.();
 
     if (window.soundEngine) {
       window.soundEngine.init();
@@ -555,7 +589,7 @@ class Game {
   }
 
   requestAutoSave() {
-    if (this.state === 'PLAYING' && this.player && this.player.hp > 0 && window.StorageManager) {
+    if ((this.state === 'PLAYING' || this.state === 'PAUSED') && this.player && this.player.hp > 0 && window.StorageManager) {
       window.StorageManager.saveActiveRun(this);
       this.showSaveToast('✦ Progress Auto-Saved');
     }
@@ -576,16 +610,104 @@ class Game {
   }
 
   saveAndExitToTitle() {
-    if (this.state === 'PLAYING') {
+    if (this.state === 'PLAYING' || this.state === 'PAUSED') {
       this.requestAutoSave();
     }
     this.state = 'START';
     document.getElementById('hud')?.classList.add('hidden');
     document.getElementById('mobile-controls')?.classList.add('hidden');
+    this.ui.pauseModal?.classList.add('hidden');
     this.ui.inventoryModal?.classList.add('hidden');
+    this.ui.closeModals();
+    this.ui.closeShopModal();
     document.getElementById('start-screen')?.classList.remove('hidden');
     this.ui.updateTitleScreen();
     this.showSaveToast('✦ Saved & Exited to Title');
+  }
+
+  pauseGame() {
+    if (this.state !== 'PLAYING') return;
+    this.state = 'PAUSED';
+
+    // Completely halt active inputs and joystick drag
+    this.input.keys = {};
+    if (this.input.joystick) {
+      this.input.joystick.reset();
+    }
+    if (this.input.aimJoystick) {
+      this.input.aimJoystick.reset();
+    }
+    if (this.player) {
+      this.player.isMoving = false;
+    }
+    if (this.gamepad) {
+      this.gamepad.stopVibration?.();
+    }
+
+    if (this.ui) {
+      this.ui.showPauseModal();
+    }
+  }
+
+  resumeGame() {
+    if (this.state !== 'PAUSED') return;
+    this.state = 'PLAYING';
+    this.lastTime = performance.now();
+
+    if (this.ui) {
+      this.ui.hidePauseModal();
+      this.ui.closeModals();
+      this.ui.toggleInventory(false);
+      this.ui.closeShopModal();
+    }
+  }
+
+  togglePause() {
+    if (this.state === 'PLAYING') {
+      this.pauseGame();
+    } else if (this.state === 'PAUSED') {
+      this.resumeGame();
+    }
+  }
+
+  onModalOpened() {
+    if (this.state === 'PLAYING') {
+      this.state = 'PAUSED';
+      this.input.keys = {};
+      if (this.input.joystick) this.input.joystick.reset();
+      if (this.input.aimJoystick) this.input.aimJoystick.reset();
+      if (this.player) this.player.isMoving = false;
+      if (this.gamepad) this.gamepad.stopVibration?.();
+    }
+  }
+
+  onModalClosed() {
+    if (this.state === 'PAUSED') {
+      if (this.ui && !this.ui.isAnyModalOpen()) {
+        this.state = 'PLAYING';
+        this.lastTime = performance.now();
+      }
+    }
+  }
+
+  handlePausedInput() {
+    if (!this.gamepad || !this.gamepad.connected) return;
+
+    if (this.gamepad.isJustPressed('Menu') || this.gamepad.isJustPressed('Start') || this.gamepad.isJustPressed('B')) {
+      if (this.ui) {
+        if (this.ui.isAnyModalOpen()) {
+          this.ui.closeModals();
+          this.ui.toggleInventory(false);
+          this.ui.closeShopModal();
+          this.ui.hidePauseModal();
+        }
+      }
+      this.resumeGame();
+    } else if (this.gamepad.isJustPressed('A')) {
+      if (this.ui && this.ui.pauseModal && !this.ui.pauseModal.classList.contains('hidden')) {
+        this.resumeGame();
+      }
+    }
   }
 
   restartGame() {
@@ -683,6 +805,8 @@ class Game {
 
   descendFloor() {
     this.state = 'TRANSITION';
+    if (this.input.joystick) this.input.joystick.reset();
+    if (this.input.aimJoystick) this.input.aimJoystick.reset();
     const transitionOverlay = document.getElementById('level-transition');
     if (transitionOverlay) {
       transitionOverlay.classList.remove('hidden');
@@ -728,6 +852,12 @@ class Game {
         this.ui.victoryScreen.classList.add('hidden');
         this.descendFloor();
       }
+      return;
+    }
+
+    // Completely halt all gameplay, combat, enemies, traps, and projectiles while paused!
+    if (this.state === 'PAUSED') {
+      this.handlePausedInput();
       return;
     }
 

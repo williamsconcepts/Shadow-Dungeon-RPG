@@ -1,4 +1,4 @@
-// Test runner for VirtualJoystick and Mobile Move Drag Integration
+// Test runner for VirtualJoystick, Dual-Stick Mobile Controls & Aim Angle Retention
 const store = {};
 global.localStorage = {
   getItem: (k) => store[k] || null,
@@ -47,7 +47,10 @@ global.soundEngine = {
   isInitialized: true,
   init: () => {},
   resume: () => {},
-  playUrnBreak: () => {}
+  playUrnBreak: () => {},
+  playSwordSlash: () => {},
+  playFireballCast: () => {},
+  playHitImpact: () => {}
 };
 
 // Require dependencies
@@ -57,7 +60,7 @@ require('../js/dungeon.js');
 require('../js/joystick.js');
 require('../js/entities.js');
 
-const { VirtualJoystick, Player, Dungeon } = global.window;
+const { VirtualJoystick, Player, Dungeon, Enemy } = global.window;
 
 let passed = 0;
 let total = 0;
@@ -73,75 +76,141 @@ function assert(cond, msg) {
   }
 }
 
-console.log('--- 1. Testing VirtualJoystick Instantiation & Defaults ---');
-const container = createMockElement('div', 'joystick-container', 'joystick-zone');
-const joystick = new VirtualJoystick(container, { maxRadius: 48, deadzone: 0.08 });
+console.log('--- 1. Testing VirtualJoystick Instantiation (Move on Left, Aim on Right) ---');
+const moveContainer = createMockElement('div', 'joystick-container', 'joystick-zone move-joystick-zone');
+const moveJoystick = new VirtualJoystick(moveContainer, { maxRadius: 48, deadzone: 0.08, side: 'left', theme: 'move' });
 
-assert(joystick.active === false, 'Joystick initially inactive');
-assert(joystick.vector.active === false, 'Joystick vector initially inactive');
-assert(joystick.x === 0 && joystick.y === 0, 'Joystick initial coordinates (0, 0)');
-assert(joystick.magnitude === 0, 'Joystick initial magnitude 0');
+const aimContainer = createMockElement('div', 'aim-joystick-container', 'joystick-zone aim-joystick-zone');
+const aimJoystick = new VirtualJoystick(aimContainer, { maxRadius: 48, deadzone: 0.08, side: 'right', theme: 'aim' });
+aimJoystick.baseEl.getBoundingClientRect = () => ({ left: 242, top: 412, width: 116, height: 116, right: 358, bottom: 528 });
 
-console.log('\n--- 2. Testing Move Drag Touch Interaction ---');
-// Simulate touch on joystick
-joystick.startTracking(101, 90, 470, false);
-assert(joystick.active === true, 'Joystick active after touch start');
-assert(joystick.vector.active === true, 'Joystick vector active after touch start');
+assert(moveJoystick.active === false, 'Move joystick initially inactive');
+assert(moveJoystick.side === 'left', 'Move joystick configured for left side');
+assert(moveJoystick.theme === 'move', 'Move joystick theme is move');
 
-// Simulate dragging right & down (+dx, +dy)
-joystick.updatePosition(120, 500);
-assert(joystick.active === true, 'Joystick active while dragging');
-assert(joystick.x > 0, `Joystick X moved positive (x: ${joystick.x.toFixed(3)})`);
-assert(joystick.y > 0, `Joystick Y moved positive (y: ${joystick.y.toFixed(3)})`);
-assert(joystick.magnitude > 0, `Joystick magnitude positive (${joystick.magnitude.toFixed(3)})`);
-assert(joystick.angle > 0, `Joystick angle calculated (${joystick.angle.toFixed(3)} rad)`);
+assert(aimJoystick.active === false, 'Aim joystick initially inactive');
+assert(aimJoystick.side === 'right', 'Aim joystick configured for right side');
+assert(aimJoystick.theme === 'aim', 'Aim joystick theme is aim');
+assert(aimContainer.children[0].className.includes('v-joystick-base-aim'), 'Aim base element has v-joystick-base-aim class');
+assert(aimContainer.children[0].children[0].className.includes('v-joystick-knob-aim'), 'Aim knob element has v-joystick-knob-aim class');
 
-console.log('\n--- 3. Testing Player Movement With Virtual Joystick ---');
+console.log('\n--- 2. Testing Move Joystick Drag & Movement ---');
 const dungeon = new Dungeon(1);
 const player = new Player(dungeon.playerStart.x, dungeon.playerStart.y, 'WARRIOR');
 
+// Mock input object matching game.js in touch mode
 const mockInput = {
   keys: {},
-  joystick: joystick,
+  joystick: moveJoystick,
+  aimJoystick: aimJoystick,
   gamepad: null,
-  mouseWorld: null,
+  mouseScreen: { x: 0, y: 0 },
+  mouseWorld: { x: dungeon.playerStart.x - 100, y: dungeon.playerStart.y - 100 },
+  mouseMoved: false,
   isTouchMode: true
 };
 
-const initialPlayerX = player.x;
-const initialPlayerY = player.y;
+// Touch move joystick down-right
+moveJoystick.startTracking(101, 80, 460, false);
+moveJoystick.updatePosition(115, 495); // positive dx, positive dy (~45 deg / 0.78 rad)
+const moveAngle = moveJoystick.angle;
 
-// Update player position with dt = 0.05s
+assert(moveJoystick.active === true, 'Move joystick active');
+assert(moveJoystick.magnitude > 0.5, 'Move joystick magnitude registered');
+
+const initialX = player.x;
+const initialY = player.y;
 player.update(0.05, mockInput, dungeon, [], []);
 
-assert(player.x > initialPlayerX, `Player moved right from joystick input (X: ${initialPlayerX} -> ${player.x})`);
-assert(player.y > initialPlayerY, `Player moved down from joystick input (Y: ${initialPlayerY} -> ${player.y})`);
-assert(player.isMoving === true, 'Player is marked isMoving = true');
-assert(Math.abs(player.angle - joystick.angle) < 0.05, 'Player facing angle aligned with joystick drag direction');
+assert(player.x > initialX, 'Player moved X positively');
+assert(player.y > initialY, 'Player moved Y positively');
+assert(Math.abs(player.angle - moveAngle) < 0.05, `Player faced walking direction (${player.angle.toFixed(3)} rad)`);
 
-console.log('\n--- 4. Testing Touch Release & Reset ---');
-joystick.reset();
-assert(joystick.active === false, 'Joystick inactive after reset');
-assert(joystick.x === 0 && joystick.y === 0, 'Joystick coordinates reset to 0');
-assert(joystick.magnitude === 0, 'Joystick magnitude reset to 0');
+console.log('\n--- 3. CRITICAL: Testing Angle Retention on Move Joystick Release ---');
+// Release move joystick
+moveJoystick.reset();
+assert(moveJoystick.active === false, 'Move joystick now inactive');
 
-// Next player update with inactive joystick
-const stoppedX = player.x;
+const savedAngle = player.angle;
+// Update player for multiple frames with no stick active and stale mouseWorld present
+for (let f = 0; f < 5; f++) {
+  player.update(0.05, mockInput, dungeon, [], []);
+}
+
+assert(player.isMoving === false, 'Player stopped moving');
+assert(Math.abs(player.angle - savedAngle) < 0.001, `Player facing angle PRESERVED on release (expected ${savedAngle.toFixed(3)}, got ${player.angle.toFixed(3)})`);
+assert(player.angle !== 0, 'Player angle DID NOT reset to 0 default');
+assert(player.angle !== Math.atan2(mockInput.mouseWorld.y - player.y, mockInput.mouseWorld.x - player.x), 'Player angle DID NOT snap to stale mouseWorld');
+
+console.log('\n--- 4. Testing Secondary Aim Joystick (Turn to Face Direction) ---');
+// Stand still, but turn player using Aim Joystick to face Left / West (pi radians)
+aimJoystick.startTracking(202, 300, 470, false);
+aimJoystick.updatePosition(260, 470); // dx = -40, dy = 0 -> angle = Math.PI rad
+const aimAngle = aimJoystick.angle;
+
+assert(aimJoystick.active === true, 'Aim joystick active');
+assert(Math.abs(Math.abs(aimAngle) - Math.PI) < 0.05, `Aim angle pointing West (~pi, got ${aimAngle.toFixed(3)})`);
+
+const stillX = player.x;
+const stillY = player.y;
 player.update(0.05, mockInput, dungeon, [], []);
-assert(player.x === stoppedX, 'Player stops moving when joystick is released');
-assert(player.isMoving === false, 'Player is marked isMoving = false');
 
-console.log('\n--- 5. Testing Left-Screen Floating Drag Simulation ---');
-// Floating touch at (100, 300)
-joystick.startTracking(102, 100, 300, true);
-assert(joystick.isFloating === true, 'Floating mode active');
-// Drag to the left
-joystick.updatePosition(60, 300);
-assert(joystick.x < -0.5, `Floating drag left produced negative X (x: ${joystick.x.toFixed(3)})`);
+assert(player.x === stillX && player.y === stillY, 'Player remained standing still while aiming');
+assert(Math.abs(player.angle - aimAngle) < 0.05, `Player turned to face Aim Joystick direction (${player.angle.toFixed(3)} rad)`);
+
+console.log('\n--- 5. CRITICAL: Testing Angle Retention on Aim Joystick Release ---');
+aimJoystick.reset();
+assert(aimJoystick.active === false, 'Aim joystick now inactive');
+
+for (let f = 0; f < 5; f++) {
+  player.update(0.05, mockInput, dungeon, [], []);
+}
+
+assert(Math.abs(player.angle - aimAngle) < 0.05, `Player preserved Aim Joystick angle upon release (${player.angle.toFixed(3)} rad)`);
+
+console.log('\n--- 6. Testing Twin-Stick Simultaneous Input (Walk One Way, Aim Another) ---');
+// Player moves South (dy > 0, angle = pi/2)
+moveJoystick.startTracking(101, 90, 470, false);
+moveJoystick.updatePosition(90, 510); // South (pi/2)
+
+// Player aims North (dy < 0, angle = -pi/2)
+aimJoystick.startTracking(202, 300, 470, false);
+aimJoystick.updatePosition(300, 430); // North (-pi/2)
+
+assert(moveJoystick.active && aimJoystick.active, 'Both sticks actively tracking multi-touch');
+
+const walkStartY = player.y;
 player.update(0.05, mockInput, dungeon, [], []);
-assert(player.x < stoppedX, 'Player moved left from floating drag');
 
-joystick.reset();
-assert(joystick.isFloating === false, 'Floating mode reset cleanly');
+assert(player.y > walkStartY, 'Player moving South from Move Joystick');
+assert(Math.abs(player.angle - aimJoystick.angle) < 0.05, `Player facing North from Aim Joystick priority (${player.angle.toFixed(3)} vs ${aimJoystick.angle.toFixed(3)})`);
 
-console.log(`\n🎉 ALL ${passed}/${total} MOBILE JOYSTICK TESTS PASSED!`);
+moveJoystick.reset();
+aimJoystick.reset();
+
+console.log('\n--- 7. Testing Auto-Target Assist on Attack (Face Nearest Enemy) ---');
+// Place an enemy to the East (+X)
+const enemyEast = new Enemy(player.x + 80, player.y, 'GOBLIN', 1);
+const enemyWest = new Enemy(player.x - 200, player.y, 'SLIME', 1);
+const enemies = [enemyEast, enemyWest];
+
+// Player is currently facing North from previous step
+assert(player.angle < 0, 'Player initially facing away from East');
+
+// Tap attack without holding Aim stick
+player.triggerPrimaryAttack(enemies, [], [], [], []);
+
+// Angle to enemyEast is atan2(0, 80) = 0 rad
+assert(Math.abs(player.angle - 0) < 0.05, `Player auto-turned to face nearest enemy at ${enemyEast.x}, ${enemyEast.y} (angle: ${player.angle.toFixed(3)} rad)`);
+
+console.log('\n--- 8. Testing Manual Aim Override Over Auto-Target Assist ---');
+// While holding Aim Joystick West (-pi), trigger attack
+aimJoystick.startTracking(202, 300, 450, false);
+aimJoystick.updatePosition(260, 450); // West
+player.update(0.05, mockInput, dungeon, [], []);
+
+player.triggerPrimaryAttack(enemies, [], [], [], []);
+assert(Math.abs(player.angle - aimJoystick.angle) < 0.05, 'Manual Aim Joystick override respected, did not force auto-target');
+aimJoystick.reset();
+
+console.log(`\n🎉 ALL ${passed}/${total} JOYSTICK & AIM CONTROLLER TESTS PASSED!`);

@@ -605,18 +605,30 @@ class Player {
       this.isMoving = false;
     }
 
+    // Cache last input for skill & aiming queries
+    this.lastInput = input;
+
     // Aiming angle priority
-    if (input.gamepad && input.gamepad.rightStick.active) {
+    if (input.gamepad && input.gamepad.rightStick && input.gamepad.rightStick.active) {
+      // 1. Gamepad Right Analog Stick (independent 360 aim)
       this.angle = input.gamepad.rightStick.angle;
-    } else if (input.gamepad && input.gamepad.leftStick.active && dist > 0.12) {
+    } else if (input.aimJoystick && (input.aimJoystick.active || (input.aimJoystick.vector && input.aimJoystick.vector.active))) {
+      // 2. Mobile Aim Joystick (dedicated turn & aim controller)
+      this.angle = input.aimJoystick.angle !== undefined ? input.aimJoystick.angle : input.aimJoystick.vector.angle;
+    } else if (input.gamepad && input.gamepad.leftStick && input.gamepad.leftStick.active && dist > 0.12) {
+      // 3. Gamepad Left Stick movement facing
       this.angle = input.gamepad.leftStick.angle;
-    } else if (input.joystick && (input.joystick.active || (input.joystick.vector && input.joystick.vector.active))) {
+    } else if (input.joystick && (input.joystick.active || (input.joystick.vector && input.joystick.vector.active)) && (input.joystick.magnitude > 0.1 || dist > 0.12)) {
+      // 4. Mobile Move Joystick movement facing
       this.angle = input.joystick.angle !== undefined ? input.joystick.angle : input.joystick.vector.angle;
     } else if (dist > 0.12) {
+      // 5. Keyboard WASD / Arrow keys movement facing
       this.angle = Math.atan2(my, mx);
-    } else if (input.mouseWorld) {
+    } else if (!input.isTouchMode && input.mouseMoved && input.mouseWorld) {
+      // 6. Desktop Mouse aiming (only when playing with active mouse on PC)
       this.angle = Math.atan2(input.mouseWorld.y - this.y, input.mouseWorld.x - this.x);
     }
+    // 7. Otherwise: preserve this.angle (DO NOT snap back to default!)
 
     // Attack animation timer
     if (this.isAttacking) {
@@ -632,6 +644,27 @@ class Player {
     this.attackCdTimer = this.attackCooldown;
     this.isAttacking = true;
     this.attackTimer = 0;
+
+    // Auto-Target Assist: Turn to face nearest alive enemy if not manually aiming with Aim Stick or Gamepad
+    const isManualAiming = (this.lastInput && this.lastInput.aimJoystick && this.lastInput.aimJoystick.active) ||
+                           (this.lastInput && this.lastInput.gamepad && this.lastInput.gamepad.rightStick && this.lastInput.gamepad.rightStick.active);
+    if (!isManualAiming && enemies && enemies.length) {
+      let closestEnemy = null;
+      let closestDist = (this.heroClass === 'MAGE') ? 340 : 160;
+      for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        if (!enemy.isDead) {
+          const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+          if (d < closestDist) {
+            closestDist = d;
+            closestEnemy = enemy;
+          }
+        }
+      }
+      if (closestEnemy) {
+        this.angle = Math.atan2(closestEnemy.y - this.y, closestEnemy.x - this.x);
+      }
+    }
 
     // Check breaking urns in close melee range
     if (urns && urns.length) {
@@ -728,6 +761,27 @@ class Player {
     if (!skill || skill.currentCd > 0 || this.mana < skill.cost) return false;
     this.mana -= skill.cost;
     skill.currentCd = skill.cd;
+
+    // Auto-Target Assist for directional skill if not manually aiming with Aim Stick or Gamepad
+    const isManualAiming = (this.lastInput && this.lastInput.aimJoystick && this.lastInput.aimJoystick.active) ||
+                           (this.lastInput && this.lastInput.gamepad && this.lastInput.gamepad.rightStick && this.lastInput.gamepad.rightStick.active);
+    if (!isManualAiming && enemies && enemies.length) {
+      let closestEnemy = null;
+      let closestDist = 340;
+      for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        if (!enemy.isDead) {
+          const d = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+          if (d < closestDist) {
+            closestDist = d;
+            closestEnemy = enemy;
+          }
+        }
+      }
+      if (closestEnemy) {
+        this.angle = Math.atan2(closestEnemy.y - this.y, closestEnemy.x - this.x);
+      }
+    }
 
     if (this.heroClass === 'WARRIOR') {
       // Whirlwind Blade: 360 spin
@@ -995,6 +1049,7 @@ class Player {
 
   takeDamage(amount, floatingTexts, camera) {
     if (this.invulnerableTimer > 0) return 0;
+    if (window.gameInstance && window.gameInstance.state === 'PAUSED') return 0;
 
     const reduction = this.def / (this.def + 40);
     const actualDmg = Math.max(1, Math.round(amount * (1 - reduction)));
@@ -1550,6 +1605,44 @@ class Player {
         ctx.stroke();
         ctx.restore();
       }
+    }
+
+    // -------------------------------------------------------------
+    // Aiming Reticle / Trajectory Guide (when aiming with Aim Stick or Gamepad Right Stick)
+    // -------------------------------------------------------------
+    const isAimingWithStick = (this.lastInput && this.lastInput.aimJoystick && this.lastInput.aimJoystick.active) ||
+                              (this.lastInput && this.lastInput.gamepad && this.lastInput.gamepad.rightStick && this.lastInput.gamepad.rightStick.active);
+    if (isAimingWithStick) {
+      ctx.save();
+      const aimDist = (this.heroClass === 'MAGE') ? 140 : 85;
+      const aimGrad = ctx.createLinearGradient(12, 0, aimDist, 0);
+      aimGrad.addColorStop(0, 'rgba(249, 115, 22, 0.95)');
+      aimGrad.addColorStop(0.7, 'rgba(239, 68, 68, 0.45)');
+      aimGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+      ctx.strokeStyle = aimGrad;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(aimDist, 0);
+      ctx.stroke();
+
+      // Glowing targeting dot & reticle tick marks at end
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f97316';
+      ctx.shadowColor = '#ea580c';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(aimDist, 0, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#fdba74';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(aimDist - 7, -4);
+      ctx.lineTo(aimDist - 7, 4);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // -------------------------------------------------------------

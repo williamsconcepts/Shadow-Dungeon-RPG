@@ -732,6 +732,67 @@ kbd {
   will-change: transform;
 }
 
+/* Right Controls Group (Aim Joystick + Action Buttons) */
+.right-controls-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  pointer-events: auto;
+}
+
+/* Virtual Aim & Turn Joystick (Flame & Amber Theme) */
+.aim-joystick-zone {
+  position: relative;
+}
+
+.aim-hint {
+  color: rgba(249, 115, 22, 0.6);
+}
+
+.v-joystick-base-aim {
+  border-color: rgba(249, 115, 22, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 16px rgba(249, 115, 22, 0.18);
+}
+
+.v-joystick-base-aim.active {
+  border-color: #f97316;
+  box-shadow: 0 4px 28px rgba(249, 115, 22, 0.6), inset 0 0 22px rgba(239, 68, 68, 0.35);
+}
+
+.v-joystick-knob-aim {
+  background: radial-gradient(circle at 35% 35%, #fb923c 0%, #ea580c 55%, #9a3412 100%);
+  border-color: #ffedd5;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 14px rgba(249, 115, 22, 0.6);
+  position: relative;
+}
+
+/* Precision Target Reticle on Aim Knob */
+.v-joystick-knob-aim::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.v-joystick-knob-aim::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: #ffffff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 /* Action Buttons Zone (Bottom-Right) */
 .action-buttons-zone {
   pointer-events: auto;
@@ -915,6 +976,81 @@ kbd {
 
 .btn-close:hover {
   color: #fff;
+}
+
+/* Pause Modal Styles */
+.pause-modal-card {
+  max-width: 440px;
+  width: 100%;
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9), 0 0 32px rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.pause-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.pause-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.5px;
+}
+
+.pause-action-btn .key-hint {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+.pause-action-btn.btn-primary-action {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #000000;
+  border: 1px solid #fbbf24;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+.pause-action-btn.btn-primary-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(245, 158, 11, 0.5);
+  filter: brightness(1.1);
+}
+
+.pause-action-btn.btn-secondary-action {
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pause-action-btn.btn-secondary-action:hover {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(245, 158, 11, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.pause-action-btn.btn-danger-action {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.pause-action-btn.btn-danger-action:hover {
+  background: rgba(153, 27, 27, 0.45);
+  border-color: #ef4444;
+  color: #fca5a5;
 }
 
 .inv-content {
@@ -1197,7 +1333,11 @@ kbd {
     height: 40px;
   }
 
-  /* Action Buttons */
+  /* Action Buttons & Aim Controls */
+  .right-controls-group {
+    gap: 8px;
+  }
+
   .action-buttons-zone {
     gap: 8px;
   }
@@ -1487,6 +1627,10 @@ kbd {
   .v-joystick-knob {
     width: 36px;
     height: 36px;
+  }
+
+  .right-controls-group {
+    gap: 5px;
   }
 
   .action-buttons-zone {

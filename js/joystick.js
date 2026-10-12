@@ -6,6 +6,8 @@ class VirtualJoystick {
     this.container = containerEl;
     this.maxRadius = options.maxRadius || 48;
     this.deadzone = options.deadzone || 0.08;
+    this.side = options.side || 'left'; // 'left' = move, 'right' = aim
+    this.theme = options.theme || (this.side === 'right' ? 'aim' : 'move');
     this.allowLeftScreenTouch = options.allowLeftScreenTouch !== false;
 
     // Output vector
@@ -17,6 +19,7 @@ class VirtualJoystick {
     this.y = 0;
     this.angle = 0;
     this.magnitude = 0;
+    this.lastAngle = 0;
 
     // Internal state
     this.touchId = null;
@@ -37,10 +40,10 @@ class VirtualJoystick {
 
   createElements() {
     this.baseEl = document.createElement('div');
-    this.baseEl.className = 'v-joystick-base';
+    this.baseEl.className = 'v-joystick-base' + (this.theme === 'aim' ? ' v-joystick-base-aim' : '');
 
     this.knobEl = document.createElement('div');
-    this.knobEl.className = 'v-joystick-knob';
+    this.knobEl.className = 'v-joystick-knob' + (this.theme === 'aim' ? ' v-joystick-knob-aim' : '');
 
     this.baseEl.appendChild(this.knobEl);
     this.container.appendChild(this.baseEl);
@@ -50,7 +53,7 @@ class VirtualJoystick {
     // 1. Direct container touch events
     this.container.addEventListener('touchstart', (e) => this.handleContainerTouchStart(e), { passive: false });
     
-    // 2. Global window touch events for tracking & left-half screen floating joystick
+    // 2. Global window touch events for tracking & floating touches
     window.addEventListener('touchstart', (e) => this.handleGlobalTouchStart(e), { passive: false });
     window.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
     window.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
@@ -98,13 +101,23 @@ class VirtualJoystick {
         continue;
       }
 
-      // Check if touch is on the left movement side of the screen (left 46% of width, below top 70px)
-      const isLeftScreen = touch.clientX <= window.innerWidth * 0.46 && touch.clientY >= 70;
-      if (isLeftScreen) {
+      // Partition screen by side:
+      let isMyZone = false;
+      if (this.side === 'left') {
+        // Move stick: left 46% of width, below top 70px, avoid touching right aim container
+        if (target && target.closest('#aim-joystick-container')) continue;
+        isMyZone = touch.clientX <= window.innerWidth * 0.46 && touch.clientY >= 70;
+      } else {
+        // Aim stick: right 50% of width, below top 70px, avoid touching move container
+        if (target && target.closest('#joystick-container')) continue;
+        isMyZone = touch.clientX > window.innerWidth * 0.48 && touch.clientY >= 70;
+      }
+
+      if (isMyZone) {
         e.preventDefault();
         this.unlockAudio();
 
-        // Reposition base dynamically under player's thumb
+        // Check if touch is inside the fixed container
         const contRect = this.container.getBoundingClientRect();
         const isInsideContainer = (
           touch.clientX >= contRect.left && touch.clientX <= contRect.right &&
@@ -250,12 +263,14 @@ class VirtualJoystick {
     this.vector.x = 0;
     this.vector.y = 0;
     this.vector.magnitude = 0;
-    this.vector.angle = 0;
 
     this.x = 0;
     this.y = 0;
     this.magnitude = 0;
-    this.angle = 0;
+    // Retain last known angle in lastAngle so facing direction is preserved upon release
+    if (this.angle !== undefined) {
+      this.lastAngle = this.angle;
+    }
 
     if (this.baseEl) {
       this.baseEl.classList.remove('active');

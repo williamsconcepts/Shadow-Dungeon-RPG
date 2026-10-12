@@ -269,6 +269,7 @@
         <div id="diff-badge" class="badge-chip diff-chip">🛡️ Adventurer</div>
         <div class="badge-chip shard-chip" title="Permanent Soul Shards">💎 <span id="shard-text">0</span></div>
         <div class="badge-chip gold-chip">🪙 <span id="gold-text">0</span></div>
+        <button id="btn-pause-toggle" class="btn-icon-chip" title="Pause Expedition (Esc / P / Menu)">⏸️<span class="xbox-badge btn-start-badge">Menu</span></button>
         <button id="btn-inventory-toggle" class="btn-icon-chip" title="Inventory (I / View)">🎒<span class="xbox-badge btn-view-badge">View</span></button>
         <button id="btn-hud-sanctum" class="btn-icon-chip" title="Soul Sanctum">🔮</button>
         <button id="btn-audio-toggle" class="btn-icon-chip" title="Toggle Sound">🔊</button>
@@ -277,64 +278,103 @@
     </div>
   </div>
 
-  <!-- On-Screen Virtual Controls (Joystick & Action Buttons) -->
+  <!-- On-Screen Virtual Controls (Dual Joysticks & Action Buttons) -->
   <div id="mobile-controls" class="controls-layer hidden">
-    <!-- Virtual Joystick Zone (Bottom-Left) -->
-    <div id="joystick-container" class="joystick-zone">
+    <!-- Virtual Move Joystick Zone (Bottom-Left) -->
+    <div id="joystick-container" class="joystick-zone move-joystick-zone" title="Move Character">
       <div class="joystick-hint">MOVE</div>
     </div>
 
-    <!-- Action & Spell Buttons (Bottom-Right) -->
-    <div class="action-buttons-zone">
-      <!-- Top row: Spells -->
-      <div class="spells-row">
-        <button id="btn-potion-hp" class="btn-skill btn-potion" title="Health Potion (LB)">
-          <span class="skill-icon">❤️</span>
-          <span id="potion-hp-count" class="badge-count">5</span>
-          <span class="xbox-badge btn-lb">LB</span>
-        </button>
-        <button id="btn-potion-mp" class="btn-skill btn-potion" title="Mana Potion (LT)">
-          <span class="skill-icon">🧪</span>
-          <span id="potion-mp-count" class="badge-count">3</span>
-          <span class="xbox-badge btn-lt">LT</span>
-        </button>
-        <button id="btn-frost" class="btn-skill" title="Frost Nova (2 / Y)">
-          <span class="skill-icon">❄️</span>
-          <span class="cd-overlay"></span>
-          <span class="cd-text"></span>
-          <span class="key-hint">2</span>
-          <span class="xbox-badge btn-y">Y</span>
-        </button>
-        <button id="btn-thunder" class="btn-skill" title="Thunder Strike (3 / RB)">
-          <span class="skill-icon">⚡</span>
-          <span class="cd-overlay"></span>
-          <span class="cd-text"></span>
-          <span class="key-hint">3</span>
-          <span class="xbox-badge btn-rb">RB</span>
-        </button>
+    <!-- Right Controls Group: Aim & Turn Stick + Action Buttons -->
+    <div class="right-controls-group">
+      <!-- Virtual Aim & Turn Joystick Zone (Aim at Enemies / 360 Facing) -->
+      <div id="aim-joystick-container" class="joystick-zone aim-joystick-zone" title="Aim & Turn Direction">
+        <div class="joystick-hint aim-hint">AIM / TURN</div>
       </div>
 
-      <!-- Bottom row: Dash, Fireball, Primary Attack -->
-      <div class="primary-row">
-        <button id="btn-dash" class="btn-skill" title="Shadow Dash (Q / B)">
-          <span class="skill-icon">💨</span>
-          <span class="cd-overlay"></span>
-          <span class="cd-text"></span>
-          <span class="key-hint">Q</span>
-          <span class="xbox-badge btn-b">B</span>
+      <!-- Action & Spell Buttons (Bottom-Right) -->
+      <div class="action-buttons-zone">
+        <!-- Top row: Spells -->
+        <div class="spells-row">
+          <button id="btn-potion-hp" class="btn-skill btn-potion" title="Health Potion (LB)">
+            <span class="skill-icon">❤️</span>
+            <span id="potion-hp-count" class="badge-count">5</span>
+            <span class="xbox-badge btn-lb">LB</span>
+          </button>
+          <button id="btn-potion-mp" class="btn-skill btn-potion" title="Mana Potion (LT)">
+            <span class="skill-icon">🧪</span>
+            <span id="potion-mp-count" class="badge-count">3</span>
+            <span class="xbox-badge btn-lt">LT</span>
+          </button>
+          <button id="btn-frost" class="btn-skill" title="Frost Nova (2 / Y)">
+            <span class="skill-icon">❄️</span>
+            <span class="cd-overlay"></span>
+            <span class="cd-text"></span>
+            <span class="key-hint">2</span>
+            <span class="xbox-badge btn-y">Y</span>
+          </button>
+          <button id="btn-thunder" class="btn-skill" title="Thunder Strike (3 / RB)">
+            <span class="skill-icon">⚡</span>
+            <span class="cd-overlay"></span>
+            <span class="cd-text"></span>
+            <span class="key-hint">3</span>
+            <span class="xbox-badge btn-rb">RB</span>
+          </button>
+        </div>
+
+        <!-- Bottom row: Dash, Fireball, Primary Attack -->
+        <div class="primary-row">
+          <button id="btn-dash" class="btn-skill" title="Shadow Dash (Q / B)">
+            <span class="skill-icon">💨</span>
+            <span class="cd-overlay"></span>
+            <span class="cd-text"></span>
+            <span class="key-hint">Q</span>
+            <span class="xbox-badge btn-b">B</span>
+          </button>
+          <button id="btn-fireball" class="btn-skill" title="Hellfire Orb (1 / X)">
+            <span class="skill-icon">🔥</span>
+            <span class="cd-overlay"></span>
+            <span class="cd-text"></span>
+            <span class="key-hint">1</span>
+            <span class="xbox-badge btn-x">X</span>
+          </button>
+          <button id="btn-attack" class="btn-skill btn-attack-main" title="Sword Attack (Space / A / RT)">
+            <span class="skill-icon">⚔️</span>
+            <span class="attack-pulse"></span>
+            <span class="key-hint">Space</span>
+            <span class="xbox-badge btn-a">A</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause Menu Modal -->
+  <div id="pause-modal" class="modal-backdrop hidden">
+    <div class="modal-card glass-panel pause-modal-card">
+      <div class="modal-header">
+        <h2>⏸️ EXPEDITION PAUSED</h2>
+        <button id="btn-close-pause" class="btn-close" title="Resume Expedition (Esc / P)">✕</button>
+      </div>
+      <p id="pause-subtitle" class="modal-subtitle">Depth 1 • Normal • Hero Level 1</p>
+
+      <div class="pause-menu-actions">
+        <button id="btn-pause-resume" class="pause-action-btn btn-primary-action">
+          <span>▶️ RESUME EXPEDITION</span>
+          <span class="key-hint">ESC / P</span>
         </button>
-        <button id="btn-fireball" class="btn-skill" title="Hellfire Orb (1 / X)">
-          <span class="skill-icon">🔥</span>
-          <span class="cd-overlay"></span>
-          <span class="cd-text"></span>
-          <span class="key-hint">1</span>
-          <span class="xbox-badge btn-x">X</span>
+        <button id="btn-pause-inventory" class="pause-action-btn btn-secondary-action">
+          <span>🎒 HERO EQUIPMENT & INVENTORY</span>
+          <span class="key-hint">I / TAB</span>
         </button>
-        <button id="btn-attack" class="btn-skill btn-attack-main" title="Sword Attack (Space / A / RT)">
-          <span class="skill-icon">⚔️</span>
-          <span class="attack-pulse"></span>
-          <span class="key-hint">Space</span>
-          <span class="xbox-badge btn-a">A</span>
+        <button id="btn-pause-sanctum" class="pause-action-btn btn-secondary-action">
+          <span>🔮 SOUL SANCTUM (BOONS)</span>
+        </button>
+        <button id="btn-pause-settings" class="pause-action-btn btn-secondary-action">
+          <span>⚙️ GAMEPLAY & AUDIO SETTINGS</span>
+        </button>
+        <button id="btn-pause-save-exit" class="pause-action-btn btn-secondary-action btn-danger-action">
+          <span>💾 SAVE & RETURN TO TITLE</span>
         </button>
       </div>
     </div>

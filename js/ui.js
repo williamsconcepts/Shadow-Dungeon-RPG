@@ -62,6 +62,8 @@ class UIManager {
     this.recordsModal = document.getElementById('records-modal');
     this.codexModal = document.getElementById('codex-modal');
     this.settingsModal = document.getElementById('settings-modal');
+    this.pauseModal = document.getElementById('pause-modal');
+    this.pauseSubtitle = document.getElementById('pause-subtitle');
 
     // Title Screen Elements
     this.startScreen = document.getElementById('start-screen');
@@ -434,6 +436,14 @@ class UIManager {
       btnCloseInv.addEventListener('click', () => this.toggleInventory(false));
     }
 
+    // Pause Toggle Button (HUD)
+    const btnPauseToggle = document.getElementById('btn-pause-toggle');
+    if (btnPauseToggle) {
+      btnPauseToggle.addEventListener('click', () => {
+        if (this.game) this.game.togglePause();
+      });
+    }
+
     // Save & Exit Button (HUD)
     const btnSaveExit = document.getElementById('btn-save-exit');
     if (btnSaveExit) {
@@ -505,22 +515,117 @@ class UIManager {
     document.getElementById('btn-close-codex')?.addEventListener('click', () => this.closeModals());
     document.getElementById('btn-close-settings')?.addEventListener('click', () => this.closeModals());
 
+    // Pause Modal Buttons
+    document.getElementById('btn-close-pause')?.addEventListener('click', () => {
+      if (this.game) this.game.resumeGame();
+    });
+
+    document.getElementById('btn-pause-resume')?.addEventListener('click', () => {
+      if (this.game) this.game.resumeGame();
+    });
+
+    document.getElementById('btn-pause-inventory')?.addEventListener('click', () => {
+      if (this.pauseModal) this.pauseModal.classList.add('hidden');
+      this.toggleInventory(true);
+    });
+
+    document.getElementById('btn-pause-sanctum')?.addEventListener('click', () => {
+      if (this.pauseModal) this.pauseModal.classList.add('hidden');
+      this.openSanctumModal();
+    });
+
+    document.getElementById('btn-pause-settings')?.addEventListener('click', () => {
+      if (this.pauseModal) this.pauseModal.classList.add('hidden');
+      this.openSettingsModal();
+    });
+
+    document.getElementById('btn-pause-save-exit')?.addEventListener('click', () => {
+      if (this.pauseModal) this.pauseModal.classList.add('hidden');
+      if (this.game) this.game.saveAndExitToTitle();
+    });
+
     // Close modal when clicking backdrop
-    [this.sanctumModal, this.recordsModal, this.codexModal, this.settingsModal].forEach(modal => {
+    [this.sanctumModal, this.recordsModal, this.codexModal, this.settingsModal, this.pauseModal].forEach(modal => {
       if (modal) {
         modal.addEventListener('click', (e) => {
-          if (e.target === modal) this.closeModals();
+          if (e.target === modal) {
+            if (modal === this.pauseModal) {
+              if (this.game) this.game.resumeGame();
+            } else {
+              this.closeModals();
+            }
+          }
         });
       }
     });
 
-    // Escape key closes modals
+    // Escape key closes modals or toggles pause
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        this.closeModals();
-        this.toggleInventory(false);
+        if (this.inventoryModal && !this.inventoryModal.classList.contains('hidden')) {
+          this.toggleInventory(false);
+          return;
+        }
+        if (this.shopModal && !this.shopModal.classList.contains('hidden')) {
+          this.closeShopModal();
+          return;
+        }
+        if ((this.sanctumModal && !this.sanctumModal.classList.contains('hidden')) ||
+            (this.recordsModal && !this.recordsModal.classList.contains('hidden')) ||
+            (this.codexModal && !this.codexModal.classList.contains('hidden')) ||
+            (this.settingsModal && !this.settingsModal.classList.contains('hidden'))) {
+          this.closeModals();
+          return;
+        }
+        if (this.pauseModal && !this.pauseModal.classList.contains('hidden')) {
+          if (this.game) this.game.resumeGame();
+          return;
+        }
+        // If playing with no modal open, toggle pause
+        if (this.game && this.game.state === 'PLAYING') {
+          this.game.pauseGame();
+        }
       }
     });
+  }
+
+  isAnyModalOpen() {
+    const modals = [
+      this.pauseModal,
+      this.inventoryModal,
+      this.sanctumModal,
+      this.recordsModal,
+      this.codexModal,
+      this.settingsModal,
+      this.shopModal
+    ];
+    return modals.some(m => m && !m.classList.contains('hidden'));
+  }
+
+  showPauseModal() {
+    if (!this.pauseModal) return;
+    this.closeModals();
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
+    if (this.shopModal) this.shopModal.classList.add('hidden');
+
+    if (this.pauseSubtitle && this.game) {
+      const p = this.game.player;
+      const d = this.game.dungeon;
+      const floorStr = d ? `Depth ${d.floor}${d.isBossFloor ? ' (Boss Floor)' : ''}` : `Depth ${this.game.floorNumber || 1}`;
+      const diffStr = this.game.difficulty || 'Adventurer';
+      const lvlStr = p ? `Hero Level ${p.level} [${p.heroClass || 'Warrior'}]` : 'Hero Level 1';
+      this.pauseSubtitle.textContent = `${floorStr} • ${diffStr} • ${lvlStr}`;
+    }
+
+    this.pauseModal.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
+  }
+
+  hidePauseModal() {
+    if (this.pauseModal) {
+      this.pauseModal.classList.add('hidden');
+    }
+    if (this.game) this.game.onModalClosed();
   }
 
   closeModals() {
@@ -529,13 +634,18 @@ class UIManager {
     this.codexModal?.classList.add('hidden');
     this.settingsModal?.classList.add('hidden');
     this.updateTitleScreen();
+    if (this.game) this.game.onModalClosed();
   }
 
   // --- 1. SOUL SANCTUM UI ---
   openSanctumModal() {
     this.closeModals();
+    if (this.pauseModal) this.pauseModal.classList.add('hidden');
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
+    if (this.shopModal) this.shopModal.classList.add('hidden');
     this.renderSanctumUI();
     this.sanctumModal?.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
   }
 
   renderSanctumUI() {
@@ -607,8 +717,12 @@ class UIManager {
   // --- 2. HALL OF RECORDS UI ---
   openRecordsModal() {
     this.closeModals();
+    if (this.pauseModal) this.pauseModal.classList.add('hidden');
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
+    if (this.shopModal) this.shopModal.classList.add('hidden');
     this.renderRecordsUI();
     this.recordsModal?.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
   }
 
   renderRecordsUI() {
@@ -651,8 +765,12 @@ class UIManager {
   // --- 3. ABYSS CODEX UI ---
   openCodexModal() {
     this.closeModals();
+    if (this.pauseModal) this.pauseModal.classList.add('hidden');
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
+    if (this.shopModal) this.shopModal.classList.add('hidden');
     this.renderCodexUI();
     this.codexModal?.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
   }
 
   renderCodexUI() {
@@ -704,8 +822,12 @@ class UIManager {
   // --- 4. SETTINGS UI ---
   openSettingsModal() {
     this.closeModals();
+    if (this.pauseModal) this.pauseModal.classList.add('hidden');
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
+    if (this.shopModal) this.shopModal.classList.add('hidden');
     this.renderSettingsUI();
     this.settingsModal?.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
   }
 
   renderSettingsUI() {
@@ -1457,11 +1579,16 @@ class UIManager {
     const newState = (forcedState !== null) ? forcedState : !isCurrentlyOpen;
 
     if (newState) {
+      this.closeModals();
+      if (this.pauseModal) this.pauseModal.classList.add('hidden');
+      if (this.shopModal) this.shopModal.classList.add('hidden');
       this.inventoryModal.classList.remove('hidden');
       this.refreshInventoryUI();
+      if (this.game) this.game.onModalOpened();
     } else {
       this.inventoryModal.classList.add('hidden');
       if (this.itemTooltip) this.itemTooltip.classList.add('hidden');
+      if (this.game) this.game.onModalClosed();
     }
   }
 
@@ -1635,7 +1762,11 @@ class UIManager {
 
   openShopModal(player, floor) {
     if (!this.shopModal) return;
+    this.closeModals();
+    if (this.pauseModal) this.pauseModal.classList.add('hidden');
+    if (this.inventoryModal) this.inventoryModal.classList.add('hidden');
     this.shopModal.classList.remove('hidden');
+    if (this.game) this.game.onModalOpened();
     if (this.shopPlayerGold) this.shopPlayerGold.textContent = `${player.gold} 🪙`;
     if (this.shopPlayerShards && window.StorageManager) {
       this.shopPlayerShards.textContent = `${window.StorageManager.getProfile().soulShards} 💎`;
@@ -1650,6 +1781,7 @@ class UIManager {
     this.shopModal.classList.add('hidden');
     this.refreshInventoryUI();
     this.game.requestAutoSave();
+    if (this.game) this.game.onModalClosed();
   }
 
   renderShopWares(player, floor) {
