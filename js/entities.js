@@ -418,8 +418,10 @@ const HERO_CLASSES = {
     baseCrit: 6,
     baseSpeed: 180,
     baseMagic: 8,
+    dashDuration: 0.48,
+    dashSpeed: 560,
     skills: {
-      dash: { cd: 2.5, currentCd: 0, cost: 10, name: 'Bull Rush', icon: '🐂', keyHint: 'Q' },
+      dash: { cd: 1.8, currentCd: 0, cost: 10, name: 'Bull Rush', icon: '🐂', keyHint: 'Q' },
       skill1: { cd: 2.2, currentCd: 0, cost: 16, name: 'Whirlwind Blade', icon: '🌪️', keyHint: '1' },
       skill2: { cd: 4.8, currentCd: 0, cost: 24, name: 'Seismic Stomp', icon: '💥', keyHint: '2' },
       skill3: { cd: 8.0, currentCd: 0, cost: 35, name: 'Battle Roar', icon: '🦁', keyHint: '3' }
@@ -438,8 +440,10 @@ const HERO_CLASSES = {
     baseCrit: 8,
     baseSpeed: 195,
     baseMagic: 24,
+    dashDuration: 0.42,
+    dashSpeed: 580,
     skills: {
-      dash: { cd: 2.0, currentCd: 0, cost: 14, name: 'Arcane Blink', icon: '✨', keyHint: 'Q' },
+      dash: { cd: 1.5, currentCd: 0, cost: 14, name: 'Arcane Blink', icon: '✨', keyHint: 'Q' },
       skill1: { cd: 1.5, currentCd: 0, cost: 18, name: 'Hellfire Orb', icon: '🔥', keyHint: '1' },
       skill2: { cd: 4.2, currentCd: 0, cost: 28, name: 'Frost Nova', icon: '❄️', keyHint: '2' },
       skill3: { cd: 6.5, currentCd: 0, cost: 40, name: 'Cataclysm Thunder', icon: '⚡', keyHint: '3' }
@@ -458,8 +462,10 @@ const HERO_CLASSES = {
     baseCrit: 20,
     baseSpeed: 220,
     baseMagic: 12,
+    dashDuration: 0.52,
+    dashSpeed: 570,
     skills: {
-      dash: { cd: 1.8, currentCd: 0, cost: 8, name: 'Shadow Step', icon: '💨', keyHint: 'Q' },
+      dash: { cd: 1.2, currentCd: 0, cost: 8, name: 'Shadow Step', icon: '💨', keyHint: 'Q' },
       skill1: { cd: 1.6, currentCd: 0, cost: 14, name: 'Poison Daggers', icon: '🗡️', keyHint: '1' },
       skill2: { cd: 4.5, currentCd: 0, cost: 22, name: 'Smoke Bomb', icon: '🌫️', keyHint: '2' },
       skill3: { cd: 6.0, currentCd: 0, cost: 32, name: 'Shadow Assassination', icon: '💀', keyHint: '3' }
@@ -528,8 +534,8 @@ class Player {
 
     this.isDashing = false;
     this.dashTimer = 0;
-    this.dashDuration = 0.22;
-    this.dashSpeed = 520;
+    this.dashDuration = classData.dashDuration || 0.48;
+    this.dashSpeed = classData.dashSpeed || 560;
     this.dashDir = { x: 0, y: 0 };
     this.dashGhosts = [];
     this.dashGhostTimer = 0;
@@ -651,6 +657,8 @@ class Player {
       this.baseCrit = classData.baseCrit;
       this.baseSpeed = classData.baseSpeed;
       this.baseMagic = classData.baseMagic;
+      this.dashDuration = classData.dashDuration || 0.48;
+      this.dashSpeed = classData.dashSpeed || 560;
       this.setupClassSkills();
     }
     this.level = data.level || 1;
@@ -810,7 +818,7 @@ class Player {
     if (this.dashGhosts && this.dashGhosts.length) {
       for (let i = this.dashGhosts.length - 1; i >= 0; i--) {
         const g = this.dashGhosts[i];
-        g.alpha -= dt * 2.8;
+        g.alpha -= dt * 1.8;
         if (g.alpha <= 0) {
           this.dashGhosts.splice(i, 1);
         }
@@ -1018,7 +1026,7 @@ class Player {
     this.isDashing = true;
     this.dashTimer = this.dashDuration;
     this.dashDir = { x: Math.cos(this.angle), y: Math.sin(this.angle) };
-    this.invulnerableTimer = this.dashDuration + 0.1;
+    this.invulnerableTimer = this.dashDuration + 0.15;
     if (navigator.vibrate) try { navigator.vibrate(25); } catch (e) {}
 
     if (window.soundEngine && typeof window.soundEngine.playDashWhoosh === 'function') {
