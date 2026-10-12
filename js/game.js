@@ -196,9 +196,6 @@ class Game {
         resize();
       }
     });
-    window.addEventListener('blur', () => {
-      if (this.state === 'PLAYING') this.pauseGame();
-    });
     resize();
   }
 
@@ -751,12 +748,12 @@ class Game {
       this.loadFloor(this.floorNumber, false);
 
       // Camera centering & state restoration
-      this.camera.x = this.player.x - this.canvas.width / 2;
-      this.camera.y = this.player.y - this.canvas.height / 2;
+      this.camera.x = this.player.x - this.camera.width / 2;
+      this.camera.y = this.player.y - this.camera.height / 2;
       this.state = 'PLAYING';
 
       // Refresh UI HUD and persist checkpoint
-      if (this.ui) this.ui.updateHUD(this.player, this.floorNumber);
+      if (this.ui) this.ui.updateHUD(this.player, this.dungeon, this.bossEnemy);
       if (window.StorageManager) {
         window.StorageManager.saveCheckpointRun(this);
       }
@@ -943,6 +940,7 @@ class Game {
   }
 
   descendFloor() {
+    if (this.state === 'TRANSITION') return;
     this.state = 'TRANSITION';
     if (this.input.joystick) this.input.joystick.reset();
     if (this.input.aimJoystick) this.input.aimJoystick.reset();
@@ -955,7 +953,11 @@ class Game {
     if (window.soundEngine) window.soundEngine.playLevelUp();
 
     setTimeout(() => {
-      this.loadFloor(this.floorNumber + 1);
+      try {
+        this.loadFloor(this.floorNumber + 1);
+      } catch (err) {
+        console.error("Error loading next floor:", err);
+      }
       setTimeout(() => {
         if (transitionOverlay) {
           transitionOverlay.style.opacity = '0';
@@ -1043,7 +1045,7 @@ class Game {
       const collected = drop.update(dt, this.player, this.particles, this.floatingTexts);
       if (collected) {
         this.lootDrops.splice(i, 1);
-        if (this.ui) this.ui.updateHUD(this.player, this.floorNumber);
+        if (this.ui) this.ui.updateHUD(this.player, this.dungeon, this.bossEnemy);
       }
     }
 
@@ -1560,14 +1562,20 @@ class Game {
 
   loop(timestamp) {
     if (!this.lastTime) this.lastTime = timestamp;
-    const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    let dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    if (!dt || isNaN(dt) || dt <= 0) dt = 0.016;
     this.lastTime = timestamp;
 
     try {
       this.update(dt);
+    } catch (err) {
+      console.error("Shadow Dungeon update error:", err);
+    }
+
+    try {
       this.render();
     } catch (err) {
-      console.error("Shadow Dungeon loop error:", err);
+      console.error("Shadow Dungeon render error:", err);
     }
 
     if (typeof requestAnimationFrame === 'function') {

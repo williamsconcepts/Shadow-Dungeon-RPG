@@ -67,9 +67,9 @@ console.log('Nightmare:', global.DIFFICULTIES.NIGHTMARE);
 console.log('Inferno:', global.DIFFICULTIES.INFERNO);
 
 console.log('\n--- TEST 2: Enemy Stat Scaling by Difficulty ---');
-const normalSlime = new Enemy(100, 100, 'SLIME', 1, global.DIFFICULTIES.NORMAL);
-const nightmareSlime = new Enemy(100, 100, 'SLIME', 1, global.DIFFICULTIES.NIGHTMARE);
-const infernoSlime = new Enemy(100, 100, 'SLIME', 1, global.DIFFICULTIES.INFERNO);
+const normalSlime = new Enemy(100, 100, 'SLIME', 1, { ...global.DIFFICULTIES.NORMAL, eliteChance: 0 });
+const nightmareSlime = new Enemy(100, 100, 'SLIME', 1, { ...global.DIFFICULTIES.NIGHTMARE, eliteChance: 0 });
+const infernoSlime = new Enemy(100, 100, 'SLIME', 1, { ...global.DIFFICULTIES.INFERNO, eliteChance: 0 });
 
 console.log(`Normal Slime HP: ${normalSlime.maxHp}, ATK: ${normalSlime.atk}, Speed: ${normalSlime.speed}`);
 console.log(`Nightmare Slime HP: ${nightmareSlime.maxHp}, ATK: ${nightmareSlime.atk}, Speed: ${nightmareSlime.speed}`);

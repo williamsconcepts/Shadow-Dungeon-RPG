@@ -29,15 +29,25 @@ const createMockElement = (id = '') => ({
     save: () => {},
     restore: () => {},
     scale: () => {},
+    translate: () => {},
+    rotate: () => {},
+    clip: () => {},
+    setLineDash: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
     clearRect: () => {},
     drawImage: () => {},
     beginPath: () => {},
+    closePath: () => {},
+    ellipse: () => {},
+    quadraticCurveTo: () => {},
     arc: () => {},
     fill: () => {},
     stroke: () => {},
     fillRect: () => {},
     strokeRect: () => {},
-    fillText: () => {}
+    fillText: () => {},
+    createRadialGradient: () => ({ addColorStop: () => {} })
   })
 });
 
@@ -150,5 +160,60 @@ assert.doesNotThrow(() => {
 }, 'game.loop must execute safely');
 assert(ranNextFrame, 'game.loop must request next animation frame');
 console.log('✅ Game.loop error boundary ensures frame loop never dies!');
+
+// --- 6. Testing LootDrop Pickup and updateHUD Integrity ---
+console.log('\n--- 6. Testing LootDrop Pickup & updateHUD ---');
+const dropShard = new global.window.LootDrop(game.player.x, game.player.y, 'SHARD', 5);
+game.lootDrops.push(dropShard);
+assert.doesNotThrow(() => {
+  // When drop is collected at dist 0, it calls this.ui.updateHUD
+  game.update(0.016);
+}, 'Collecting loot drop must not throw or crash updateHUD');
+assert.strictEqual(game.lootDrops.length, 0, 'Collected loot drop must be removed from lootDrops array');
+console.log('✅ Loot collection updateHUD works seamlessly without crashing!');
+
+// --- 7. Testing Warrior Skill 1 & 2 Urn Breaking Safety ---
+console.log('\n--- 7. Testing Warrior Urn Breaking Skills ---');
+// Place an urn near the player
+const testUrn = new global.window.Urn(game.player.x + 20, game.player.y);
+game.urns.push(testUrn);
+game.player.skills.skill1.currentCd = 0;
+game.player.mana = 100;
+
+assert.doesNotThrow(() => {
+  game.player.triggerSkill1(game.enemies, game.projectiles, game.particles, game.floatingTexts);
+}, 'Whirlwind Skill 1 near urns must not throw u.break is not a function');
+assert.strictEqual(testUrn.broken, true, 'Urn must be broken by whirlwind');
+console.log('✅ Skill 1 breaks urns safely!');
+
+const testUrn2 = new global.window.Urn(game.player.x + 30, game.player.y);
+game.urns.push(testUrn2);
+game.player.skills.skill2.currentCd = 0;
+game.player.mana = 100;
+assert.doesNotThrow(() => {
+  game.player.triggerSkill2(game.enemies, game.particles, game.floatingTexts, game.camera);
+}, 'Seismic Stomp Skill 2 near urns must not throw');
+assert.strictEqual(testUrn2.broken, true, 'Urn must be broken by stomp');
+console.log('✅ Skill 2 breaks urns safely!');
+
+// --- 8. Testing Checkpoint Respawn & HUD Update ---
+console.log('\n--- 8. Testing Checkpoint Respawn & HUD Update ---');
+assert.doesNotThrow(() => {
+  game.restartGame(true);
+}, 'restartGame(true) must cleanly respawn player without throwing');
+assert.strictEqual(game.state, 'PLAYING', 'Game must be PLAYING after checkpoint restart');
+console.log('✅ Checkpoint restart restores player and HUD flawlessly!');
+
+// --- 9. Testing descendFloor Transition Guards ---
+console.log('\n--- 9. Testing descendFloor Transition Guards ---');
+assert.doesNotThrow(() => {
+  game.descendFloor();
+}, 'descendFloor must trigger transition safely');
+assert.strictEqual(game.state, 'TRANSITION', 'Game must enter TRANSITION state');
+// Attempt duplicate invocation while in transition
+assert.doesNotThrow(() => {
+  game.descendFloor();
+}, 'Duplicate descendFloor calls while in TRANSITION must be ignored safely');
+console.log('✅ descendFloor handles transition states safely!');
 
 console.log('\n🎉 ALL FREEZE & HANG REGRESSION TESTS PASSED (100%)! 🎉\n');

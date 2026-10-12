@@ -896,6 +896,10 @@ class UIManager {
   // IN-GAME HUD UPDATE
   // -------------------------------------------------------------
   updateHUD(player, dungeon, bossEnemy) {
+    if (!player) return;
+    if (!dungeon || typeof dungeon !== 'object' || !dungeon.tiles) {
+      dungeon = (this.game && this.game.dungeon) ? this.game.dungeon : null;
+    }
     // Health Bar
     const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
     this.hpBarFill.style.width = `${hpPct}%`;
@@ -938,7 +942,9 @@ class UIManager {
     if (this.shardText && window.StorageManager) {
       this.shardText.textContent = window.StorageManager.getProfile().soulShards;
     }
-    this.depthBadge.textContent = `Depth ${dungeon.floor}${dungeon.isBossFloor ? ' (Boss)' : ''}`;
+    const depthFloor = (dungeon && dungeon.floor) || (this.game && this.game.floorNumber) || 1;
+    const isBoss = (dungeon && dungeon.isBossFloor) || (this.game && this.game.dungeon && this.game.dungeon.isBossFloor) || false;
+    this.depthBadge.textContent = `Depth ${depthFloor}${isBoss ? ' (Boss)' : ''}`;
 
     // Difficulty & Hardcore badge in HUD
     const diffBadge = document.getElementById('diff-badge');
@@ -964,25 +970,25 @@ class UIManager {
     const s3 = player.skills.skill3 || player.skills.thunder;
 
     if (sDash && this.btnDash) {
-      const iconSpan = this.btnDash.querySelector('.skill-icon');
+      const iconSpan = (typeof this.btnDash.querySelector === 'function') ? this.btnDash.querySelector('.skill-icon') : null;
       if (iconSpan && sDash.icon) iconSpan.textContent = sDash.icon;
       this.btnDash.title = `${sDash.name} (${sDash.keyHint || 'Q'} / B)`;
       this.updateSkillCooldown(this.btnDash, sDash, player.mana);
     }
     if (s1 && this.btnFireball) {
-      const iconSpan = this.btnFireball.querySelector('.skill-icon');
+      const iconSpan = (typeof this.btnFireball.querySelector === 'function') ? this.btnFireball.querySelector('.skill-icon') : null;
       if (iconSpan && s1.icon) iconSpan.textContent = s1.icon;
       this.btnFireball.title = `${s1.name} (${s1.keyHint || '1'} / X)`;
       this.updateSkillCooldown(this.btnFireball, s1, player.mana);
     }
     if (s2 && this.btnFrost) {
-      const iconSpan = this.btnFrost.querySelector('.skill-icon');
+      const iconSpan = (typeof this.btnFrost.querySelector === 'function') ? this.btnFrost.querySelector('.skill-icon') : null;
       if (iconSpan && s2.icon) iconSpan.textContent = s2.icon;
       this.btnFrost.title = `${s2.name} (${s2.keyHint || '2'} / Y)`;
       this.updateSkillCooldown(this.btnFrost, s2, player.mana);
     }
     if (s3 && this.btnThunder) {
-      const iconSpan = this.btnThunder.querySelector('.skill-icon');
+      const iconSpan = (typeof this.btnThunder.querySelector === 'function') ? this.btnThunder.querySelector('.skill-icon') : null;
       if (iconSpan && s3.icon) iconSpan.textContent = s3.icon;
       this.btnThunder.title = `${s3.name} (${s3.keyHint || '3'} / RB)`;
       this.updateSkillCooldown(this.btnThunder, s3, player.mana);
@@ -990,10 +996,10 @@ class UIManager {
 
     // Boss Bar
     if (bossEnemy && !bossEnemy.isDead) {
-      this.bossBarContainer.classList.remove('hidden');
-      this.bossNameText.textContent = bossEnemy.name;
+      this.bossBarContainer?.classList?.remove('hidden');
+      if (this.bossNameText) this.bossNameText.textContent = bossEnemy.name;
       const bPct = Math.max(0, (bossEnemy.hp / bossEnemy.maxHp) * 100);
-      this.bossBarFill.style.width = `${bPct}%`;
+      if (this.bossBarFill) this.bossBarFill.style.width = `${bPct}%`;
       if (this.bossBarGhost) {
         this.bossBarGhost.style.width = `${bPct}%`;
       }
@@ -1001,7 +1007,7 @@ class UIManager {
         this.bossHpText.textContent = `${Math.ceil(bossEnemy.hp)} / ${bossEnemy.maxHp} (${Math.round(bPct)}%)`;
       }
     } else {
-      this.bossBarContainer.classList.add('hidden');
+      this.bossBarContainer?.classList?.add('hidden');
     }
 
     // Render Minimap
@@ -1010,8 +1016,8 @@ class UIManager {
 
   updateSkillCooldown(btnEl, skill, currentMana) {
     if (!btnEl || !skill) return;
-    const overlay = btnEl.querySelector('.cd-overlay');
-    const cdText = btnEl.querySelector('.cd-text');
+    const overlay = (typeof btnEl.querySelector === 'function') ? btnEl.querySelector('.cd-overlay') : null;
+    const cdText = (typeof btnEl.querySelector === 'function') ? btnEl.querySelector('.cd-text') : null;
 
     if (skill.currentCd > 0) {
       const pct = (skill.currentCd / skill.cd) * 100;
@@ -1032,7 +1038,11 @@ class UIManager {
   }
 
   renderMinimap(player, dungeon) {
-    if (!this.minimapCtx) return;
+    if (!this.minimapCtx || !player) return;
+    if (!dungeon || typeof dungeon !== 'object' || !dungeon.tiles) {
+      dungeon = (this.game && this.game.dungeon) ? this.game.dungeon : null;
+    }
+    if (!dungeon || !dungeon.tiles) return;
     const ctx = this.minimapCtx;
     const w = this.minimapCanvas.width;
     const h = this.minimapCanvas.height;

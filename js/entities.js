@@ -5,15 +5,29 @@ class Particle {
   constructor(x, y, options = {}) {
     this.x = x;
     this.y = y;
-    this.vx = options.vx || (Math.random() - 0.5) * 120;
-    this.vy = options.vy || (Math.random() - 0.5) * 120;
-    this.size = options.size || 3 + Math.random() * 3;
-    this.color = options.color || '#f59e0b';
-    this.life = options.life || 0.4 + Math.random() * 0.4;
-    this.maxLife = this.life;
-    this.drag = options.drag || 0.95;
-    this.gravity = options.gravity || 0;
-    this.shape = options.shape || 'circle';
+    if (typeof options === 'string') {
+      // Support positional invocation: new Particle(x, y, color, vx, vy, life, size)
+      this.color = options;
+      this.vx = (typeof arguments[3] === 'number') ? arguments[3] : (Math.random() - 0.5) * 120;
+      this.vy = (typeof arguments[4] === 'number') ? arguments[4] : (Math.random() - 0.5) * 120;
+      this.life = (typeof arguments[5] === 'number') ? arguments[5] : 0.4 + Math.random() * 0.4;
+      this.maxLife = this.life;
+      this.size = (typeof arguments[6] === 'number') ? arguments[6] : 3 + Math.random() * 3;
+      this.drag = 0.95;
+      this.gravity = 0;
+      this.shape = 'circle';
+    } else {
+      const opts = options || {};
+      this.vx = typeof opts.vx === 'number' ? opts.vx : (Math.random() - 0.5) * 120;
+      this.vy = typeof opts.vy === 'number' ? opts.vy : (Math.random() - 0.5) * 120;
+      this.size = typeof opts.size === 'number' ? opts.size : 3 + Math.random() * 3;
+      this.color = opts.color || '#f59e0b';
+      this.life = typeof opts.life === 'number' ? opts.life : 0.4 + Math.random() * 0.4;
+      this.maxLife = this.life;
+      this.drag = typeof opts.drag === 'number' ? opts.drag : 0.95;
+      this.gravity = typeof opts.gravity === 'number' ? opts.gravity : 0;
+      this.shape = opts.shape || 'circle';
+    }
   }
 
   update(dt) {
@@ -855,8 +869,10 @@ class Player {
       my += input.gamepad.leftStick.y;
     }
 
+    if (isNaN(mx)) mx = 0;
+    if (isNaN(my)) my = 0;
     const dist = Math.hypot(mx, my);
-    if (dist > 0.1) {
+    if (dist > 0.1 && !isNaN(dist)) {
       const normX = mx / Math.max(1, dist);
       const normY = my / Math.max(1, dist);
       const effectiveSpeed = this.isInvisible ? (this.speed * 1.35) : this.speed;
@@ -1083,13 +1099,17 @@ class Player {
           enemy.takeDamage(dmg, isCrit, this, floatingTexts, particles);
         }
       });
-      if (window.gameInstance && window.gameInstance.dungeon && window.gameInstance.dungeon.urns) {
-        window.gameInstance.dungeon.urns.forEach(u => {
-          if (!u.broken && Math.hypot(this.x - u.x, this.y - u.y) <= spinRadius) {
+      const urnsToBreak = (window.gameInstance && window.gameInstance.urns) ||
+                          (window.gameInstance && window.gameInstance.dungeon && window.gameInstance.dungeon.urns) || [];
+      urnsToBreak.forEach(u => {
+        if (!u.broken && Math.hypot(this.x - u.x, this.y - u.y) <= spinRadius) {
+          if (typeof u.break === 'function') {
             u.break(this, floatingTexts, particles);
+          } else {
+            u.broken = true;
           }
-        });
-      }
+        }
+      });
       for (let i = 0; i < 16; i++) {
         const ang = (i / 16) * Math.PI * 2;
         particles.push(new Particle(this.x + Math.cos(ang) * 40, this.y + Math.sin(ang) * 40, {
@@ -1159,13 +1179,17 @@ class Player {
           enemy.applySlow(3.5, 0.40);
         }
       });
-      if (window.gameInstance && window.gameInstance.dungeon && window.gameInstance.dungeon.urns) {
-        window.gameInstance.dungeon.urns.forEach(u => {
-          if (!u.broken && Math.hypot(this.x - u.x, this.y - u.y) <= stompRadius) {
+      const stompUrns = (window.gameInstance && window.gameInstance.urns) ||
+                        (window.gameInstance && window.gameInstance.dungeon && window.gameInstance.dungeon.urns) || [];
+      stompUrns.forEach(u => {
+        if (!u.broken && Math.hypot(this.x - u.x, this.y - u.y) <= stompRadius) {
+          if (typeof u.break === 'function') {
             u.break(this, floatingTexts, particles);
+          } else {
+            u.broken = true;
           }
-        });
-      }
+        }
+      });
       for (let i = 0; i < 24; i++) {
         const ang = (i / 24) * Math.PI * 2;
         particles.push(new Particle(this.x + Math.cos(ang) * 25, this.y + Math.sin(ang) * 25, {
