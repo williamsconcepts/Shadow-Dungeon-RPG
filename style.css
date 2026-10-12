@@ -2611,6 +2611,56 @@ body.gamepad-active .key-hint {
   justify-content: center;
 }
 
+.btn-respawn-call {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 6px 24px rgba(56, 189, 248, 0.45) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+}
+
+.btn-respawn-call:hover {
+  border-color: #bae6fd !important;
+  box-shadow: 0 10px 32px rgba(56, 189, 248, 0.65) !important;
+  transform: translateY(-2px);
+}
+
+.btn-restart-fresh {
+  background: rgba(30, 41, 59, 0.75) !important;
+  border: 1px solid rgba(148, 163, 184, 0.35) !important;
+  color: #94a3b8 !important;
+  font-size: 0.88rem !important;
+  padding: 10px 18px !important;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.btn-restart-fresh:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+  border-color: #cbd5e1 !important;
+  color: #f8fafc !important;
+  transform: translateY(-1px);
+}
+
+.game-over-buttons-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.game-over-buttons-group .btn-epic,
+.game-over-buttons-group .btn-secondary {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-sanctum-call {
   background: linear-gradient(135deg, #7e22ce 0%, #6b21a8 100%) !important;
   border-color: #c084fc !important;

@@ -420,6 +420,41 @@ class SoundEngine {
     osc.stop(now + 0.92);
   }
 
+  // Player Death - ominous low-frequency descending rumble & soul dissipation
+  playPlayerDeath() {
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    // Low heavy impact thud
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(32, now + 0.85);
+
+    gain.gain.setValueAtTime(0.75, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.86);
+
+    // Ethereal soul dissipation resonance
+    const noiseOsc = this.ctx.createOscillator();
+    const noiseGain = this.ctx.createGain();
+    noiseOsc.type = 'triangle';
+    noiseOsc.frequency.setValueAtTime(260, now + 0.08);
+    noiseOsc.frequency.linearRampToValueAtTime(75, now + 1.2);
+
+    noiseGain.gain.setValueAtTime(0.4, now + 0.08);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+    noiseOsc.connect(noiseGain);
+    noiseGain.connect(this.sfxGain);
+    noiseOsc.start(now + 0.08);
+    noiseOsc.stop(now + 1.21);
+  }
+
   // Soul Shard collection chime
   playShardCollect() {
     if (!this.ctx || this.isMuted) return;

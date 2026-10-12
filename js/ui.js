@@ -470,7 +470,12 @@ class UIManager {
     // Restart & Victory Continue
     const btnRestart = document.getElementById('btn-restart');
     if (btnRestart) {
-      btnRestart.addEventListener('click', () => this.game.restartGame());
+      btnRestart.addEventListener('click', () => this.game.restartGame(true));
+    }
+
+    const btnRestartFresh = document.getElementById('btn-restart-fresh');
+    if (btnRestartFresh) {
+      btnRestartFresh.addEventListener('click', () => this.game.restartGame(false));
     }
 
     const btnVictoryContinue = document.getElementById('btn-victory-continue');
@@ -1691,9 +1696,29 @@ class UIManager {
   showGameOver(stats) {
     if (this.lowHpVignette) this.lowHpVignette.classList.add('hidden');
     if (this.gameOverScreen) {
+      const isHardcore = stats.hardcore !== undefined ? stats.hardcore : (this.game && this.game.hardcore);
+      const floorNum = stats.floor || (this.game ? this.game.floorNumber : 1);
+      const btnRestartText = document.getElementById('btn-restart-text');
+      const btnRestartFresh = document.getElementById('btn-restart-fresh');
+
+      if (btnRestartText) {
+        if (isHardcore) {
+          btnRestartText.textContent = '🔄 NEW RUN (DEPTH 1)';
+        } else {
+          btnRestartText.textContent = `⚔️ RESTART FROM DEPTH ${floorNum}`;
+        }
+      }
+
+      if (btnRestartFresh) {
+        if (isHardcore) {
+          btnRestartFresh.classList.add('hidden');
+        } else {
+          btnRestartFresh.classList.remove('hidden');
+        }
+      }
+
       if (this.statsSummary) {
-        const diffName = stats.difficulty || this.game.difficulty || 'NORMAL';
-        const isHardcore = stats.hardcore !== undefined ? stats.hardcore : this.game.hardcore;
+        const diffName = stats.difficulty || (this.game && this.game.difficulty) || 'NORMAL';
         this.statsSummary.innerHTML = `
           ${isHardcore ? '<div class="hardcore-death-notice" style="color: #ef4444; font-weight: bold; margin-bottom: 8px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); letter-spacing: 0.5px;">💀 HARDCORE CASUALTY — RUN PERMANENTLY ERASED 💀</div>' : ''}
           <div>Difficulty: <strong style="color: #38bdf8;">${diffName}${isHardcore ? ' (Hardcore)' : ''}</strong></div>

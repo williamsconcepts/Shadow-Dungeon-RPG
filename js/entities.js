@@ -301,6 +301,7 @@ class Player {
     this.isMoving = false;
     this.walkCycle = 0;
     this.invulnerableTimer = 0;
+    this.isDead = false;
 
     // Combat & Skills Cooldowns
     this.isAttacking = false;
@@ -412,7 +413,10 @@ class Player {
       healthPotions: this.healthPotions,
       manaPotions: this.manaPotions,
       hp: this.hp,
+      maxHp: this.maxHp,
       mana: this.mana,
+      maxMana: this.maxMana,
+      isDead: !!this.isDead,
       equipped: this.equipped,
       inventory: this.inventory
     };
@@ -442,8 +446,9 @@ class Player {
     this.equipped = data.equipped || { weapon: null, armor: null, ring: null, amulet: null };
     this.inventory = data.inventory || [];
     this.recalculateStats();
-    this.hp = Math.min(this.maxHp, data.hp !== undefined ? data.hp : this.maxHp);
-    this.mana = Math.min(this.maxMana, data.mana !== undefined ? data.mana : this.maxMana);
+    this.isDead = false;
+    this.hp = Math.min(this.maxHp, data.hp !== undefined && data.hp > 0 ? data.hp : this.maxHp);
+    this.mana = Math.min(this.maxMana, data.mana !== undefined && data.mana > 0 ? data.mana : this.maxMana);
   }
 
   equipItem(item) {
@@ -513,10 +518,23 @@ class Player {
   }
 
   update(dt, input, dungeon, particles, floatingTexts) {
+    // If dead, halt actions immediately
+    if (this.isDead || this.hp <= 0) {
+      this.hp = 0;
+      this.isDead = true;
+      this.isMoving = false;
+      this.isAttacking = false;
+      this.isDashing = false;
+      return;
+    }
+
     // Passive health & mana recovery (+ Sanctum mana regen bonus)
-    const bonusRegen = window.StorageManager ? (window.StorageManager.getSanctumStatBonuses().manaRegen || 0) : 0;
-    this.hp = Math.min(this.maxHp, this.hp + 3.0 * dt);
-    this.mana = Math.min(this.maxMana, this.mana + (4.5 + bonusRegen) * dt);
+    // ONLY occurs when the hero is ALIVE! Never rebuilds when dead or at 0 HP!
+    if (this.hp > 0 && !this.isDead) {
+      const bonusRegen = window.StorageManager ? (window.StorageManager.getSanctumStatBonuses().manaRegen || 0) : 0;
+      this.hp = Math.min(this.maxHp, this.hp + 3.0 * dt);
+      this.mana = Math.min(this.maxMana, this.mana + (4.5 + bonusRegen) * dt);
+    }
 
     if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt;
     if (this.attackCdTimer > 0) this.attackCdTimer -= dt;
@@ -1048,6 +1066,7 @@ class Player {
   }
 
   takeDamage(amount, floatingTexts, camera) {
+    if (this.isDead || this.hp <= 0) return 0;
     if (this.invulnerableTimer > 0) return 0;
     if (window.gameInstance && window.gameInstance.state === 'PAUSED') return 0;
 
@@ -1055,13 +1074,23 @@ class Player {
     const actualDmg = Math.max(1, Math.round(amount * (1 - reduction)));
 
     this.hp = Math.max(0, this.hp - actualDmg);
-    this.invulnerableTimer = 0.65;
 
     floatingTexts.push(new FloatingText(this.x, this.y - 25, `-${actualDmg}`, '#ef4444', true));
     if (window.soundEngine) window.soundEngine.playHitImpact(true);
     if (camera) camera.shake(7, 0.2);
     if (window.gameInstance && window.gameInstance.gamepad) {
       window.gameInstance.gamepad.vibrate(220, 0.5, 0.6);
+    }
+
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.isDead = true;
+      this.invulnerableTimer = 0;
+      if (window.gameInstance && typeof window.gameInstance.handlePlayerDeath === 'function') {
+        window.gameInstance.handlePlayerDeath();
+      }
+    } else {
+      this.invulnerableTimer = 0.65;
     }
 
     return actualDmg;
@@ -1085,8 +1114,10 @@ class Player {
       ctx.restore();
     }
 
-    // Invisibility or invulnerability flash
-    if (this.isInvisible) {
+    // Invisibility or invulnerability flash or death state
+    if (this.isDead) {
+      ctx.globalAlpha = 0.35;
+    } else if (this.isInvisible) {
       ctx.globalAlpha = 0.38;
     } else if (this.invulnerableTimer > 0 && Math.floor(Date.now() / 60) % 2 === 0) {
       ctx.globalAlpha = 0.5;

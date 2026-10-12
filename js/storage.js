@@ -228,7 +228,7 @@ class StorageManager {
   // -------------------------------------------------------------
   static hasActiveRun() {
     const run = this.getJSON(this.KEYS.RUN);
-    return !!(run && typeof run.floorNumber === 'number' && run.playerData && run.playerData.hp > 0);
+    return !!(run && typeof run.floorNumber === 'number' && run.playerData && (run.playerData.hp > 0 || run.isCheckpoint));
   }
 
   static getActiveRun() {
@@ -244,7 +244,33 @@ class StorageManager {
       hardcore: !!game.hardcore,
       savedAt: Date.now(),
       playerData: game.player.serialize(),
-      shardsEarnedThisRun: game.player.shardsEarnedThisRun || 0
+      shardsEarnedThisRun: game.player.shardsEarnedThisRun || 0,
+      isCheckpoint: false
+    };
+    return this.setJSON(this.KEYS.RUN, runData);
+  }
+
+  static saveCheckpointRun(game) {
+    if (!game || !game.player) return false;
+    const serialized = game.player.serialize();
+    // For restart checkpoint from where they stopped, restore player's HP and Mana to full
+    serialized.hp = game.player.maxHp || serialized.maxHp || 100;
+    serialized.mana = game.player.maxMana || serialized.maxMana || 50;
+    serialized.maxHp = game.player.maxHp || serialized.maxHp || 100;
+    serialized.maxMana = game.player.maxMana || serialized.maxMana || 50;
+    serialized.isDead = false;
+    if ((serialized.healthPotions || 0) < 2) serialized.healthPotions = 2;
+    if ((serialized.manaPotions || 0) < 2) serialized.manaPotions = 2;
+
+    const runData = {
+      floorNumber: game.floorNumber,
+      monstersDefeated: game.monstersDefeated,
+      difficulty: game.difficulty || 'NORMAL',
+      hardcore: !!game.hardcore,
+      savedAt: Date.now(),
+      playerData: serialized,
+      shardsEarnedThisRun: (game.player && game.player.shardsEarnedThisRun) || 0,
+      isCheckpoint: true
     };
     return this.setJSON(this.KEYS.RUN, runData);
   }

@@ -569,6 +569,10 @@ class Game {
     this.hardcore = !!run.hardcore;
     this.loadFloor(this.floorNumber, false);
     this.player.deserialize(run.playerData);
+    if (this.player.hp <= 0 || this.player.isDead) {
+      this.player.hp = this.player.maxHp;
+      this.player.isDead = false;
+    }
     if (typeof run.shardsEarnedThisRun === 'number') {
       this.player.shardsEarnedThisRun = run.shardsEarnedThisRun;
     }
@@ -710,10 +714,134 @@ class Game {
     }
   }
 
-  restartGame() {
-    this.ui.gameOverScreen.classList.add('hidden');
-    this.ui.victoryScreen.classList.add('hidden');
+  restartGame(fromCurrentFloor = true) {
+    if (this.ui && this.ui.gameOverScreen) this.ui.gameOverScreen.classList.add('hidden');
+    if (this.ui && this.ui.victoryScreen) this.ui.victoryScreen.classList.add('hidden');
+
+    // If restarting from current floor depth and not hardcore permadeath:
+    if (fromCurrentFloor && !this.hardcore && this.floorNumber >= 1 && this.player) {
+      // Revive and heal player fully
+      this.player.isDead = false;
+      this.player.hp = this.player.maxHp;
+      this.player.mana = this.player.maxMana;
+      this.player.invulnerableTimer = 2.0; // Grace invulnerability period upon spawning
+      this.player.isMoving = false;
+      this.player.isAttacking = false;
+      this.player.isDashing = false;
+
+      // Replenish emergency potions if depleted
+      if ((this.player.healthPotions || 0) < 2) {
+        this.player.healthPotions = 2;
+      }
+      if ((this.player.manaPotions || 0) < 2) {
+        this.player.manaPotions = 2;
+      }
+
+      // Re-generate current floor depth afresh
+      this.loadFloor(this.floorNumber, false);
+
+      // Camera centering & state restoration
+      this.camera.x = this.player.x - this.canvas.width / 2;
+      this.camera.y = this.player.y - this.canvas.height / 2;
+      this.state = 'PLAYING';
+
+      // Refresh UI HUD and persist checkpoint
+      if (this.ui) this.ui.updateHUD(this.player, this.floorNumber);
+      if (window.StorageManager) {
+        window.StorageManager.saveCheckpointRun(this);
+      }
+
+      // Audio feedback & notification
+      if (window.soundEngine && typeof window.soundEngine.playHeal === 'function') {
+        window.soundEngine.playHeal();
+      }
+      if (this.ui && typeof this.ui.showToast === 'function') {
+        this.ui.showToast(`✦ Respawned at Depth ${this.floorNumber} • Life Restored!`, 3200);
+      }
+      return;
+    }
+
+    // Otherwise, start fresh from floor 1
+    if (window.StorageManager) {
+      window.StorageManager.clearActiveRun();
+    }
     this.startNewGame();
+  }
+
+  handlePlayerDeath() {
+    if (this.state === 'GAME_OVER') return;
+    this.state = 'GAME_OVER';
+
+    if (this.player) {
+      this.player.hp = 0;
+      this.player.isDead = true;
+      this.player.isMoving = false;
+      this.player.isAttacking = false;
+      this.player.isDashing = false;
+    }
+
+    // Camera impact shake & gamepad rumble
+    if (this.camera) this.camera.shake(16, 0.6);
+    if (this.gamepad) this.gamepad.vibrate(500, 0.8, 1.0);
+
+    // Audio cue: procedural low-frequency descending death impact & ethereal resonance
+    if (window.soundEngine && typeof window.soundEngine.playPlayerDeath === 'function') {
+      window.soundEngine.playPlayerDeath();
+    } else if (window.soundEngine && typeof window.soundEngine.playHitImpact === 'function') {
+      window.soundEngine.playHitImpact(true);
+    }
+
+    // Death burst particles: soul essence and crimson sparks
+    if (this.particles && this.player) {
+      for (let i = 0; i < 35; i++) {
+        const ang = (Math.PI * 2 * i) / 35 + (Math.random() - 0.5) * 0.4;
+        const spd = 60 + Math.random() * 120;
+        const isSoul = i % 2 === 0;
+        const color = isSoul ? '#a855f7' : '#ef4444';
+        this.particles.push(new window.Particle(
+          this.player.x,
+          this.player.y,
+          color,
+          Math.cos(ang) * spd,
+          Math.sin(ang) * spd,
+          0.8 + Math.random() * 0.6,
+          4 + Math.random() * 4
+        ));
+      }
+    }
+
+    const shardsEarned = (this.player && this.player.shardsEarnedThisRun) || 0;
+    if (window.StorageManager) {
+      window.StorageManager.recordRunEnd({
+        floor: this.floorNumber,
+        level: this.player ? this.player.level : 1,
+        monstersDefeated: this.monstersDefeated,
+        gold: this.player ? this.player.gold : 0,
+        shardsEarned: shardsEarned,
+        difficulty: this.difficulty,
+        hardcore: this.hardcore,
+        outcome: 'PERISHED'
+      });
+
+      // Save checkpoint at current depth so user can restart from where they stopped
+      if (!this.hardcore) {
+        window.StorageManager.saveCheckpointRun(this);
+      } else {
+        window.StorageManager.clearActiveRun();
+      }
+    }
+
+    if (this.ui) {
+      this.ui.showGameOver({
+        floor: this.floorNumber,
+        level: this.player ? this.player.level : 1,
+        monstersDefeated: this.monstersDefeated,
+        gold: this.player ? this.player.gold : 0,
+        shardsEarned: shardsEarned,
+        difficulty: this.difficulty,
+        hardcore: this.hardcore
+      });
+    }
   }
 
   loadFloor(floorNum, isFirstFloor = false) {
@@ -842,7 +970,7 @@ class Game {
 
     if (this.state === 'GAME_OVER') {
       if (this.gamepad && (this.gamepad.isJustPressed('A') || this.gamepad.isJustPressed('Menu'))) {
-        this.restartGame();
+        this.restartGame(true);
       }
       return;
     }
@@ -892,32 +1020,9 @@ class Game {
       this.dungeon.updateExploration(this.player.x, this.player.y, 8.5);
     }
 
-    // Player Death Check
-    if (this.player.hp <= 0) {
-      this.state = 'GAME_OVER';
-      const shardsEarned = this.player.shardsEarnedThisRun || 0;
-      if (window.StorageManager) {
-        window.StorageManager.recordRunEnd({
-          floor: this.floorNumber,
-          level: this.player.level,
-          monstersDefeated: this.monstersDefeated,
-          gold: this.player.gold,
-          shardsEarned: shardsEarned,
-          difficulty: this.difficulty,
-          hardcore: this.hardcore,
-          outcome: 'PERISHED'
-        });
-        window.StorageManager.clearActiveRun();
-      }
-      this.ui.showGameOver({
-        floor: this.floorNumber,
-        level: this.player.level,
-        monstersDefeated: this.monstersDefeated,
-        gold: this.player.gold,
-        shardsEarned: shardsEarned,
-        difficulty: this.difficulty,
-        hardcore: this.hardcore
-      });
+    // Player Death Check failsafe
+    if (this.player && (this.player.hp <= 0 || this.player.isDead)) {
+      this.handlePlayerDeath();
       return;
     }
 
