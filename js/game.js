@@ -126,6 +126,7 @@ class Game {
     this.floatingTexts = [];
     this.telegraphs = [];
     this.lootDrops = [];
+    this.hitstopTimer = 0;
     this.bossEnemy = null;
     this.autoSaveTimer = 0;
     this.selectedHeroClass = 'WARRIOR';
@@ -397,6 +398,10 @@ class Game {
         this.gamepad.vibrate(100, 0.2, 0.2);
       }
     }
+  }
+
+  triggerHitstop(duration = 0.045) {
+    this.hitstopTimer = Math.max(this.hitstopTimer, duration);
   }
 
   checkInteractOrAttack() {
@@ -863,6 +868,7 @@ class Game {
     this.particles = [];
     this.floatingTexts = [];
     this.telegraphs = [];
+    this.lootDrops = [];
     this.bossEnemy = null;
 
     // Interactive Entities
@@ -991,6 +997,15 @@ class Game {
 
     if (this.state !== 'PLAYING') return;
 
+    // Hitstop micro-freeze (tactile frame pause on crits & boss/elite kills)
+    if (this.hitstopTimer > 0) {
+      this.hitstopTimer -= dt;
+      if (this.camera) this.camera.update(dt, this.player);
+      if (this.particles) this.particles.forEach(p => p.update(dt));
+      if (this.floatingTexts) this.floatingTexts.forEach(ft => ft.update(dt));
+      return;
+    }
+
     // Periodic Auto-Save
     this.autoSaveTimer += dt;
     if (this.autoSaveTimer >= 22) {
@@ -1007,6 +1022,23 @@ class Game {
 
     // Update Player
     this.player.update(dt, this.input, this.dungeon, this.particles, this.floatingTexts);
+
+    // Continuous Hold-to-Attack
+    if ((this.input.attackHeld || this.input.keys['Space']) && this.player && !this.player.isDead) {
+      if (this.player.attackCdTimer <= 0) {
+        this.player.triggerPrimaryAttack(this.enemies, this.particles, this.floatingTexts, this.projectiles, this.urns);
+      }
+    }
+
+    // Update Physical Ground Loot Pickups
+    for (let i = this.lootDrops.length - 1; i >= 0; i--) {
+      const drop = this.lootDrops[i];
+      const collected = drop.update(dt, this.player, this.particles, this.floatingTexts);
+      if (collected) {
+        this.lootDrops.splice(i, 1);
+        if (this.ui) this.ui.updateHUD(this.player, this.floorNumber);
+      }
+    }
 
     // Update Spike Traps
     if (this.traps) {
@@ -1207,6 +1239,12 @@ class Game {
     // 2. Render Chests & Stairs
     this.renderObjects(ctx);
 
+    // 2.5. Render Target Reticle & Ground Loot Drops
+    this.renderTargetReticle(ctx);
+    if (this.lootDrops && this.lootDrops.length) {
+      this.lootDrops.forEach(ld => ld.render(ctx));
+    }
+
     // 3. Render Ground Telegraph Danger Zones
     this.telegraphs.forEach(t => t.render(ctx));
 
@@ -1229,6 +1267,58 @@ class Game {
 
     // 9. Render Dynamic 2D Lighting Mask
     this.renderLighting();
+  }
+
+  renderTargetReticle(ctx) {
+    if (!this.player || this.player.isDead || !this.enemies || !this.enemies.length) return;
+    
+    // Find closest alive enemy within engagement range (320px)
+    let closestEnemy = null;
+    let closestDist = 320;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i];
+      if (!e.isDead) {
+        const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+        if (d < closestDist) {
+          closestDist = d;
+          closestEnemy = e;
+        }
+      }
+    }
+
+    if (!closestEnemy) return;
+
+    ctx.save();
+    ctx.translate(closestEnemy.x, closestEnemy.y);
+    const now = Date.now();
+    const rot = (now / 1400) % (Math.PI * 2);
+    const pulse = Math.sin(now / 180) * 2;
+    const rad = closestEnemy.radius + 12 + pulse;
+
+    // Glowing target ring
+    ctx.strokeStyle = closestEnemy.isBoss ? '#ef4444' : (closestEnemy.isElite ? '#fbbf24' : 'rgba(56, 189, 248, 0.75)');
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = closestEnemy.isBoss ? '#ef4444' : (closestEnemy.isElite ? '#fbbf24' : '#38bdf8');
+    ctx.shadowBlur = 8;
+
+    // 4 Corner Brackets
+    ctx.rotate(rot);
+    const bracketLen = 0.45;
+    for (let i = 0; i < 4; i++) {
+      const startAngle = (i * Math.PI / 2) - bracketLen / 2;
+      const endAngle = startAngle + bracketLen;
+      ctx.beginPath();
+      ctx.arc(0, 0, rad, startAngle, endAngle);
+      ctx.stroke();
+    }
+
+    // Center targeting pip
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   renderDungeonTiles(ctx) {

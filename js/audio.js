@@ -610,6 +610,55 @@ class SoundEngine {
       osc.stop(now + 0.23);
     } catch (e) {}
   }
+
+  // Alias for Coin Pickup
+  playCoinPickup() {
+    this.playCoin();
+  }
+
+  // Health Globe / Vitality pickup
+  playHealthGlobePickup() {
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      [261.63, 392.00, 523.25].forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+        gain.gain.setValueAtTime(0.28, now + idx * 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.28);
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(now + idx * 0.04);
+        osc.stop(now + idx * 0.04 + 0.29);
+      });
+    } catch (e) {}
+  }
+
+  // Subtle rhythmic stone footstep
+  playFootstep() {
+    if (!this.ctx || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80 + Math.random() * 20, now);
+      osc.frequency.exponentialRampToValueAtTime(35, now + 0.05);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } catch (e) {}
+  }
+
+  // High velocity dash wind swoosh
+  playDashWhoosh() {
+    this.playDash();
+  }
 }
 
 window.soundEngine = new SoundEngine();

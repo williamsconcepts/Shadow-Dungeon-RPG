@@ -337,11 +337,12 @@ class UIManager {
     if (this.btnAttack) {
       let attackHoldInterval = null;
       const startAttack = (e) => {
-        if (e) e.preventDefault();
+        if (e && e.cancelable) e.preventDefault();
+        if (this.game && this.game.input) this.game.input.attackHeld = true;
         this.game.checkInteractOrAttack();
         if (!attackHoldInterval) {
           attackHoldInterval = setInterval(() => {
-            if (this.game.state === 'PLAYING') {
+            if (this.game && this.game.state === 'PLAYING') {
               this.game.checkInteractOrAttack();
             } else {
               clearInterval(attackHoldInterval);
@@ -351,6 +352,7 @@ class UIManager {
         }
       };
       const stopAttack = () => {
+        if (this.game && this.game.input) this.game.input.attackHeld = false;
         if (attackHoldInterval) {
           clearInterval(attackHoldInterval);
           attackHoldInterval = null;

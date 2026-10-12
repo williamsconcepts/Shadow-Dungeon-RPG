@@ -189,6 +189,220 @@ class GroundTelegraph {
   }
 }
 
+// --- Interactive Physical Ground Loot Drop (Gold Coins, Health Globes, Mana Crystals, Soul Shards) ---
+class LootDrop {
+  constructor(x, y, type, value, options = {}) {
+    this.x = x;
+    this.y = y;
+    this.type = type; // 'GOLD', 'HEALTH_GLOBE', 'MANA_ORB', 'SHARD'
+    this.value = value;
+    this.itemData = options.itemData || null;
+
+    // Ejection impulse physics
+    const ejectAngle = options.angle !== undefined ? options.angle : Math.random() * Math.PI * 2;
+    const ejectSpeed = options.speed !== undefined ? options.speed : 65 + Math.random() * 85;
+    this.vx = Math.cos(ejectAngle) * ejectSpeed;
+    this.vy = Math.sin(ejectAngle) * ejectSpeed;
+    this.friction = 0.88;
+    this.radius = options.radius || (type === 'HEALTH_GLOBE' ? 12 : 9);
+    this.collected = false;
+
+    // Visual animation
+    this.spin = Math.random() * Math.PI * 2;
+    this.bobTimer = Math.random() * 10;
+  }
+
+  update(dt, player, particles, floatingTexts) {
+    if (this.collected) return true;
+
+    // Friction slowdown
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.vx *= Math.pow(this.friction, dt * 60);
+    this.vy *= Math.pow(this.friction, dt * 60);
+    this.bobTimer += dt * 3.5;
+    this.spin += dt * 4.0;
+
+    if (!player || player.isDead) return false;
+
+    // Distance to player
+    const dx = player.x - this.x;
+    const dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+
+    // Magnetic Vacuum Attraction: accelerates smoothly when player is within vacuum radius
+    const vacuumRadius = 140;
+    if (dist < vacuumRadius) {
+      const pullSpeed = (1 - dist / vacuumRadius) * 480 + 160;
+      this.vx += (dx / dist) * pullSpeed * dt;
+      this.vy += (dy / dist) * pullSpeed * dt;
+    }
+
+    // Pickup Collection Check
+    if (dist < (this.radius + player.radius + 6)) {
+      this.collect(player, particles, floatingTexts);
+      return true;
+    }
+
+    return false;
+  }
+
+  collect(player, particles, floatingTexts) {
+    this.collected = true;
+
+    if (this.type === 'GOLD') {
+      player.gold += this.value;
+      floatingTexts.push(new FloatingText(this.x, this.y - 15, `+${this.value} 🪙`, '#fbbf24'));
+      if (window.soundEngine && window.soundEngine.playCoinPickup) window.soundEngine.playCoinPickup();
+      if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
+      for (let i = 0; i < 6; i++) {
+        particles.push(new Particle(this.x, this.y, {
+          vx: (Math.random() - 0.5) * 120,
+          vy: (Math.random() - 0.5) * 120,
+          color: '#fbbf24',
+          size: 3 + Math.random() * 2,
+          life: 0.3
+        }));
+      }
+    } else if (this.type === 'HEALTH_GLOBE') {
+      const healAmt = Math.max(15, Math.round(player.maxHp * 0.16));
+      player.hp = Math.min(player.maxHp, player.hp + healAmt);
+      floatingTexts.push(new FloatingText(this.x, this.y - 20, `+${healAmt} HP`, '#10b981', true));
+      if (window.soundEngine && window.soundEngine.playHealthGlobePickup) window.soundEngine.playHealthGlobePickup();
+      if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) {}
+      for (let i = 0; i < 8; i++) {
+        particles.push(new Particle(this.x, this.y, {
+          vx: (Math.random() - 0.5) * 140,
+          vy: (Math.random() - 0.5) * 140,
+          color: '#10b981',
+          size: 4 + Math.random() * 3,
+          life: 0.35
+        }));
+      }
+    } else if (this.type === 'MANA_ORB') {
+      const manaAmt = Math.max(15, Math.round(player.maxMana * 0.22));
+      player.mana = Math.min(player.maxMana, player.mana + manaAmt);
+      floatingTexts.push(new FloatingText(this.x, this.y - 20, `+${manaAmt} MP`, '#38bdf8', true));
+      if (window.soundEngine && window.soundEngine.playHeal) window.soundEngine.playHeal();
+      for (let i = 0; i < 8; i++) {
+        particles.push(new Particle(this.x, this.y, {
+          vx: (Math.random() - 0.5) * 140,
+          vy: (Math.random() - 0.5) * 140,
+          color: '#38bdf8',
+          size: 4 + Math.random() * 3,
+          life: 0.35
+        }));
+      }
+    } else if (this.type === 'SHARD') {
+      if (window.StorageManager) window.StorageManager.addSoulShards(this.value);
+      player.shardsEarnedThisRun = (player.shardsEarnedThisRun || 0) + this.value;
+      floatingTexts.push(new FloatingText(this.x, this.y - 20, `+${this.value} 💎`, '#c084fc', true));
+      if (window.soundEngine && window.soundEngine.playShardCollect) window.soundEngine.playShardCollect();
+      for (let i = 0; i < 8; i++) {
+        particles.push(new Particle(this.x, this.y, {
+          vx: (Math.random() - 0.5) * 140,
+          vy: (Math.random() - 0.5) * 140,
+          color: '#c084fc',
+          size: 4 + Math.random() * 3,
+          life: 0.35
+        }));
+      }
+    }
+  }
+
+  render(ctx) {
+    if (this.collected) return;
+    const bob = Math.sin(this.bobTimer) * 3;
+
+    ctx.save();
+    ctx.translate(this.x, this.y + bob);
+
+    if (this.type === 'GOLD') {
+      const coinScaleX = Math.abs(Math.cos(this.spin)) * 0.7 + 0.3;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(0, 6 - bob, 7, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.scale(coinScaleX, 1);
+      ctx.fillStyle = '#fbbf24';
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(-1.5, -1.5, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.type === 'HEALTH_GLOBE') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 7 - bob, 8, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const auraPulse = Math.sin(this.bobTimer * 1.5) * 2;
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 10 + auraPulse * 2;
+
+      const grad = ctx.createRadialGradient(0, 0, 1, 0, 0, 7.5);
+      grad.addColorStop(0, '#fecaca');
+      grad.addColorStop(0.4, '#ef4444');
+      grad.addColorStop(1, '#991b1b');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-1.5, -4, 3, 8);
+      ctx.fillRect(-4, -1.5, 8, 3);
+    } else if (this.type === 'MANA_ORB') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 7 - bob, 8, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 9;
+      const grad = ctx.createRadialGradient(0, 0, 1, 0, 0, 7);
+      grad.addColorStop(0, '#e0f2fe');
+      grad.addColorStop(0.5, '#38bdf8');
+      grad.addColorStop(1, '#0369a1');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.type === 'SHARD') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(0, 7 - bob, 7, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowColor = '#c084fc';
+      ctx.shadowBlur = 11;
+      ctx.rotate(this.spin * 0.4);
+      ctx.fillStyle = '#c084fc';
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(6, 0);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-6, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#f3e8ff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+}
+
 // --- Hero Classes & Archetypes ---
 const HERO_CLASSES = {
   WARRIOR: {
@@ -317,6 +531,9 @@ class Player {
     this.dashDuration = 0.22;
     this.dashSpeed = 520;
     this.dashDir = { x: 0, y: 0 };
+    this.dashGhosts = [];
+    this.dashGhostTimer = 0;
+    this.footstepTimer = 0;
 
     this.recalculateStats();
 
@@ -552,7 +769,7 @@ class Player {
       }
     }
 
-    // Handle Dash state
+    // Handle Dash state & Afterimages
     if (this.isDashing) {
       this.dashTimer -= dt;
       const moveX = this.dashDir.x * this.dashSpeed * dt;
@@ -560,6 +777,20 @@ class Player {
 
       if (!dungeon.checkCollision(this.x + moveX, this.y, this.radius)) this.x += moveX;
       if (!dungeon.checkCollision(this.x, this.y + moveY, this.radius)) this.y += moveY;
+
+      // Spawn Dash Ghost Afterimages every 35ms
+      this.dashGhostTimer = (this.dashGhostTimer || 0) - dt;
+      if (this.dashGhostTimer <= 0) {
+        this.dashGhostTimer = 0.035;
+        if (!this.dashGhosts) this.dashGhosts = [];
+        this.dashGhosts.push({
+          x: this.x,
+          y: this.y,
+          angle: this.angle,
+          alpha: 0.7,
+          color: this.heroClass === 'ROGUE' ? '#c084fc' : (this.heroClass === 'MAGE' ? '#38bdf8' : '#60a5fa')
+        });
+      }
 
       // Dash ghost particles
       particles.push(new Particle(this.x, this.y, {
@@ -573,6 +804,17 @@ class Player {
         this.isDashing = false;
       }
       return;
+    }
+
+    // Decay ghost afterimages
+    if (this.dashGhosts && this.dashGhosts.length) {
+      for (let i = this.dashGhosts.length - 1; i >= 0; i--) {
+        const g = this.dashGhosts[i];
+        g.alpha -= dt * 2.8;
+        if (g.alpha <= 0) {
+          this.dashGhosts.splice(i, 1);
+        }
+      }
     }
 
     // Process Movement: Combine Keyboard + Virtual Joystick + Xbox Gamepad
@@ -619,6 +861,13 @@ class Player {
 
       this.isMoving = true;
       this.walkCycle += dt * 10;
+      this.footstepTimer = (this.footstepTimer || 0) + dt;
+      if (this.footstepTimer >= 0.28) {
+        this.footstepTimer = 0;
+        if (window.soundEngine && typeof window.soundEngine.playFootstep === 'function') {
+          window.soundEngine.playFootstep();
+        }
+      }
     } else {
       this.isMoving = false;
     }
@@ -662,6 +911,7 @@ class Player {
     this.attackCdTimer = this.attackCooldown;
     this.isAttacking = true;
     this.attackTimer = 0;
+    if (navigator.vibrate) try { navigator.vibrate(10); } catch (e) {}
 
     // Auto-Target Assist: Turn to face nearest alive enemy if not manually aiming with Aim Stick or Gamepad
     const isManualAiming = (this.lastInput && this.lastInput.aimJoystick && this.lastInput.aimJoystick.active) ||
@@ -769,8 +1019,13 @@ class Player {
     this.dashTimer = this.dashDuration;
     this.dashDir = { x: Math.cos(this.angle), y: Math.sin(this.angle) };
     this.invulnerableTimer = this.dashDuration + 0.1;
+    if (navigator.vibrate) try { navigator.vibrate(25); } catch (e) {}
 
-    if (window.soundEngine) window.soundEngine.playDash();
+    if (window.soundEngine && typeof window.soundEngine.playDashWhoosh === 'function') {
+      window.soundEngine.playDashWhoosh();
+    } else if (window.soundEngine) {
+      window.soundEngine.playDash();
+    }
     return true;
   }
 
@@ -1097,6 +1352,24 @@ class Player {
   }
 
   render(ctx) {
+    // Render Dash Ghost Afterimages in world space
+    if (this.dashGhosts && this.dashGhosts.length) {
+      for (let i = 0; i < this.dashGhosts.length; i++) {
+        const g = this.dashGhosts[i];
+        ctx.save();
+        ctx.translate(g.x, g.y);
+        ctx.rotate(g.angle);
+        ctx.globalAlpha = g.alpha * 0.42;
+        ctx.fillStyle = g.color;
+        ctx.shadowColor = g.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
     ctx.save();
     ctx.translate(this.x, this.y);
 
@@ -1838,6 +2111,9 @@ class Enemy {
     ));
 
     if (window.soundEngine) window.soundEngine.playHitImpact(isCrit);
+    if (isCrit && window.gameInstance && typeof window.gameInstance.triggerHitstop === 'function') {
+      window.gameInstance.triggerHitstop(0.045);
+    }
 
     for (let i = 0; i < (isCrit ? 10 : 5); i++) {
       particles.push(new Particle(this.x, this.y, {
@@ -1863,6 +2139,11 @@ class Enemy {
     this.isDead = true;
     player.addXp(this.xpValue, floatingTexts);
 
+    // Hitstop micro-freeze for elite or boss kills
+    if ((this.isElite || this.isBoss) && window.gameInstance && typeof window.gameInstance.triggerHitstop === 'function') {
+      window.gameInstance.triggerHitstop(0.065);
+    }
+
     // Drop Soul Shards based on enemy tier (scaled by difficulty)
     const diff = this.diff || window.gameInstance?.getDifficultyMultipliers() || { goldMult: 1.0, shardMult: 1.0 };
     let shardCount = 1;
@@ -1873,15 +2154,9 @@ class Enemy {
 
     shardCount = Math.max(1, Math.round(shardCount * (diff.shardMult || 1.0)));
 
-    // Elite bonus rewards
+    // Elite bonus rewards (equipment)
     if (this.isElite) {
       shardCount += Math.floor(3 + Math.random() * 3);
-      const baseBonusGold = 25 + Math.floor(Math.random() * 35);
-      const bonusGold = Math.max(1, Math.round(baseBonusGold * (diff.goldMult || 1.0)));
-      player.gold += bonusGold;
-      floatingTexts.push(new FloatingText(this.x, this.y - 48, `+${bonusGold} 🪙`, '#fbbf24', true));
-
-      // 60% chance to drop Rare/Epic equipment from Elite
       if (Math.random() < 0.60 && player.inventory.length < 16 && window.ItemSystem) {
         const itemRarity = Math.random() < 0.25 ? 'EPIC' : 'RARE';
         const slots = ['weapon', 'armor', 'ring', 'amulet'];
@@ -1891,14 +2166,48 @@ class Enemy {
       }
     }
 
-    if (window.StorageManager) {
-      window.StorageManager.addSoulShards(shardCount);
-      window.StorageManager.recordEnemyKill(this.type);
-    }
-    player.shardsEarnedThisRun = (player.shardsEarnedThisRun || 0) + shardCount;
-    floatingTexts.push(new FloatingText(this.x, this.y - 32, `+${shardCount} 💎`, '#c084fc', true));
-    if (window.soundEngine && window.soundEngine.playShardCollect) {
-      window.soundEngine.playShardCollect();
+    // Physical Ground Loot Ejection
+    const hasLootDropSystem = window.gameInstance && Array.isArray(window.gameInstance.lootDrops) && window.LootDrop;
+    if (hasLootDropSystem) {
+      // 1. Physical Soul Shard drop
+      window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'SHARD', shardCount));
+
+      // 2. Chance for Health Globe (35% if injured, 18% base)
+      const needHp = player.hp < (player.maxHp * 0.5);
+      if (Math.random() < (needHp ? 0.35 : 0.18)) {
+        window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'HEALTH_GLOBE', 1));
+      } else if (Math.random() < 0.16) {
+        // 3. Chance for Mana Crystal
+        window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'MANA_ORB', 1));
+      }
+
+      // 4. Physical Gold Coins for Elite
+      if (this.isElite) {
+        const baseBonusGold = 25 + Math.floor(Math.random() * 35);
+        const bonusGold = Math.max(1, Math.round(baseBonusGold * (diff.goldMult || 1.0)));
+        const coinCount = Math.min(4, Math.max(2, Math.floor(bonusGold / 12)));
+        const perCoin = Math.max(1, Math.floor(bonusGold / coinCount));
+        for (let c = 0; c < coinCount; c++) {
+          window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'GOLD', perCoin));
+        }
+      }
+    } else {
+      // Fallback for standalone test suites
+      if (this.isElite) {
+        const baseBonusGold = 25 + Math.floor(Math.random() * 35);
+        const bonusGold = Math.max(1, Math.round(baseBonusGold * (diff.goldMult || 1.0)));
+        player.gold += bonusGold;
+        floatingTexts.push(new FloatingText(this.x, this.y - 48, `+${bonusGold} 🪙`, '#fbbf24', true));
+      }
+      if (window.StorageManager) {
+        window.StorageManager.addSoulShards(shardCount);
+        window.StorageManager.recordEnemyKill(this.type);
+      }
+      player.shardsEarnedThisRun = (player.shardsEarnedThisRun || 0) + shardCount;
+      floatingTexts.push(new FloatingText(this.x, this.y - 32, `+${shardCount} 💎`, '#c084fc', true));
+      if (window.soundEngine && window.soundEngine.playShardCollect) {
+        window.soundEngine.playShardCollect();
+      }
     }
 
     for (let i = 0; i < 18; i++) {
@@ -2564,27 +2873,41 @@ class Urn {
       }));
     }
 
-    // Loot drops: 50% Gold, 15% Potion, 15% Shards, 20% Empty
+    // Loot drops: 50% Gold, 15% Potion/Globe, 15% Shards, 20% Empty
     const roll = Math.random();
+    const hasLootDropSystem = window.gameInstance && Array.isArray(window.gameInstance.lootDrops) && window.LootDrop;
+
     if (roll < 0.50) {
       const goldAmt = 5 + Math.floor(Math.random() * 15);
-      player.gold += goldAmt;
-      floatingTexts.push(new FloatingText(this.x, this.y - 18, `+${goldAmt} 🪙`, '#fbbf24'));
-      if (window.soundEngine && window.soundEngine.playCoinPickup) window.soundEngine.playCoinPickup();
-    } else if (roll < 0.65) {
-      if (Math.random() < 0.5) {
-        player.healthPotions++;
-        floatingTexts.push(new FloatingText(this.x, this.y - 18, '+1 HP Potion', '#ef4444', true));
+      if (hasLootDropSystem) {
+        window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'GOLD', goldAmt));
       } else {
-        player.manaPotions++;
-        floatingTexts.push(new FloatingText(this.x, this.y - 18, '+1 MP Potion', '#38bdf8', true));
+        player.gold += goldAmt;
+        floatingTexts.push(new FloatingText(this.x, this.y - 18, `+${goldAmt} 🪙`, '#fbbf24'));
+        if (window.soundEngine && window.soundEngine.playCoinPickup) window.soundEngine.playCoinPickup();
+      }
+    } else if (roll < 0.65) {
+      if (hasLootDropSystem) {
+        window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, Math.random() < 0.5 ? 'HEALTH_GLOBE' : 'MANA_ORB', 1));
+      } else {
+        if (Math.random() < 0.5) {
+          player.healthPotions++;
+          floatingTexts.push(new FloatingText(this.x, this.y - 18, '+1 HP Potion', '#ef4444', true));
+        } else {
+          player.manaPotions++;
+          floatingTexts.push(new FloatingText(this.x, this.y - 18, '+1 MP Potion', '#38bdf8', true));
+        }
       }
     } else if (roll < 0.80) {
       const shardAmt = 1 + Math.floor(Math.random() * 2);
-      if (window.StorageManager) window.StorageManager.addSoulShards(shardAmt);
-      player.shardsEarnedThisRun = (player.shardsEarnedThisRun || 0) + shardAmt;
-      floatingTexts.push(new FloatingText(this.x, this.y - 18, `+${shardAmt} 💎`, '#c084fc', true));
-      if (window.soundEngine && window.soundEngine.playShardCollect) window.soundEngine.playShardCollect();
+      if (hasLootDropSystem) {
+        window.gameInstance.lootDrops.push(new window.LootDrop(this.x, this.y, 'SHARD', shardAmt));
+      } else {
+        if (window.StorageManager) window.StorageManager.addSoulShards(shardAmt);
+        player.shardsEarnedThisRun = (player.shardsEarnedThisRun || 0) + shardAmt;
+        floatingTexts.push(new FloatingText(this.x, this.y - 18, `+${shardAmt} 💎`, '#c084fc', true));
+        if (window.soundEngine && window.soundEngine.playShardCollect) window.soundEngine.playShardCollect();
+      }
     }
   }
 
@@ -2941,4 +3264,5 @@ window.Urn = Urn;
 window.SpikeTrap = SpikeTrap;
 window.Shrine = Shrine;
 window.Merchant = Merchant;
+window.LootDrop = LootDrop;
 
