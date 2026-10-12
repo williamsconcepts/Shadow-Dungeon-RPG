@@ -233,9 +233,10 @@ class LootDrop {
     // Magnetic Vacuum Attraction: accelerates smoothly when player is within vacuum radius
     const vacuumRadius = 140;
     if (dist < vacuumRadius) {
+      const safeDist = Math.max(0.1, dist);
       const pullSpeed = (1 - dist / vacuumRadius) * 480 + 160;
-      this.vx += (dx / dist) * pullSpeed * dt;
-      this.vy += (dy / dist) * pullSpeed * dt;
+      this.vx += (dx / safeDist) * pullSpeed * dt;
+      this.vy += (dy / safeDist) * pullSpeed * dt;
     }
 
     // Pickup Collection Check
@@ -704,9 +705,14 @@ class Player {
   }
 
   addXp(amount, floatingTexts) {
-    this.xp += amount;
+    this.xp += (amount || 0);
     floatingTexts.push(new FloatingText(this.x, this.y - 25, `+${amount} XP`, '#38bdf8'));
-    while (this.xp >= this.xpToNext) {
+    if (!this.xpToNext || this.xpToNext <= 0 || isNaN(this.xpToNext)) {
+      this.xpToNext = 100;
+    }
+    let safetyCounter = 0;
+    while (this.xp >= this.xpToNext && safetyCounter < 30) {
+      safetyCounter++;
       this.xp -= this.xpToNext;
       this.levelUp(floatingTexts);
     }
@@ -985,7 +991,7 @@ class Player {
       if (dist <= sweepRange + enemy.radius) {
         const angleToEnemy = Math.atan2(dy, dx);
         let diff = Math.abs(angleToEnemy - this.angle);
-        while (diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+        if (diff > Math.PI) diff = Math.PI * 2 - diff;
 
         if (diff <= sweepAngleRange) {
           const isCrit = Math.random() * 100 < this.crit;

@@ -350,33 +350,18 @@ class UIManager {
 
     // Attack / Interact button (Supports single-tap and hold-to-autocombat)
     if (this.btnAttack) {
-      let attackHoldInterval = null;
       const startAttack = (e) => {
         if (e && e.cancelable) e.preventDefault();
         if (this.game && this.game.input) this.game.input.attackHeld = true;
         this.game.checkInteractOrAttack();
-        if (!attackHoldInterval) {
-          attackHoldInterval = setInterval(() => {
-            if (this.game && this.game.state === 'PLAYING') {
-              this.game.checkInteractOrAttack();
-            } else {
-              clearInterval(attackHoldInterval);
-              attackHoldInterval = null;
-            }
-          }, 180);
-        }
       };
       const stopAttack = () => {
         if (this.game && this.game.input) this.game.input.attackHeld = false;
-        if (attackHoldInterval) {
-          clearInterval(attackHoldInterval);
-          attackHoldInterval = null;
-        }
       };
 
       this.btnAttack.addEventListener('touchstart', startAttack, { passive: false });
-      this.btnAttack.addEventListener('touchend', stopAttack, { passive: false });
-      this.btnAttack.addEventListener('touchcancel', stopAttack, { passive: false });
+      window.addEventListener('touchend', stopAttack);
+      window.addEventListener('touchcancel', stopAttack);
       this.btnAttack.addEventListener('mousedown', startAttack);
       window.addEventListener('mouseup', stopAttack);
     }

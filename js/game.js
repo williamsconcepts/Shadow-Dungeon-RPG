@@ -59,17 +59,22 @@ class Camera {
     this.shakeDuration = Math.max(this.shakeDuration, duration);
   }
 
-  update(targetX, targetY, dt, dungeon) {
+  update(targetX, targetY, dt = 0.016, dungeon = null) {
+    if (typeof targetX !== 'number' || typeof targetY !== 'number') return;
+    if (isNaN(targetX) || isNaN(targetY)) return;
+
     // Smooth camera lag
     const lerpSpeed = 8.0;
     this.x += (targetX - this.width / 2 - this.x) * lerpSpeed * dt;
     this.y += (targetY - this.height / 2 - this.y) * lerpSpeed * dt;
 
-    // Bounds clamp
-    const maxCameraX = dungeon.width * dungeon.tileSize - this.width;
-    const maxCameraY = dungeon.height * dungeon.tileSize - this.height;
-    this.x = Math.max(0, Math.min(this.x, Math.max(0, maxCameraX)));
-    this.y = Math.max(0, Math.min(this.y, Math.max(0, maxCameraY)));
+    // Bounds clamp (if dungeon provided)
+    if (dungeon && typeof dungeon.width === 'number' && typeof dungeon.tileSize === 'number') {
+      const maxCameraX = dungeon.width * dungeon.tileSize - this.width;
+      const maxCameraY = dungeon.height * dungeon.tileSize - this.height;
+      this.x = Math.max(0, Math.min(this.x, Math.max(0, maxCameraX)));
+      this.y = Math.max(0, Math.min(this.y, Math.max(0, maxCameraY)));
+    }
 
     // Process Trauma screen shake (if enabled)
     const shakeAllowed = window.StorageManager ? window.StorageManager.getSettings().screenShake !== false : true;
@@ -999,8 +1004,10 @@ class Game {
 
     // Hitstop micro-freeze (tactile frame pause on crits & boss/elite kills)
     if (this.hitstopTimer > 0) {
-      this.hitstopTimer -= dt;
-      if (this.camera) this.camera.update(dt, this.player);
+      this.hitstopTimer = Math.max(0, this.hitstopTimer - dt);
+      if (this.camera && this.player && this.dungeon) {
+        this.camera.update(this.player.x, this.player.y, dt, this.dungeon);
+      }
       if (this.particles) this.particles.forEach(p => p.update(dt));
       if (this.floatingTexts) this.floatingTexts.forEach(ft => ft.update(dt));
       return;
@@ -1556,8 +1563,12 @@ class Game {
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
 
-    this.update(dt);
-    this.render();
+    try {
+      this.update(dt);
+      this.render();
+    } catch (err) {
+      console.error("Shadow Dungeon loop error:", err);
+    }
 
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame((t) => this.loop(t));
