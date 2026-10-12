@@ -197,6 +197,9 @@
     </div>
   </div>
 
+  <!-- Low Health Critical Screen Vignette (Dynamic Red Pulse for Mobile) -->
+  <div id="low-hp-vignette" class="low-hp-vignette hidden"></div>
+
   <!-- In-Game HUD -->
   <div id="hud" class="hud-layer hidden">
     <!-- Top-Left: Player Stats Bar -->
@@ -206,12 +209,16 @@
         <div class="bars-container">
           <!-- HP Bar -->
           <div class="bar-wrapper hp-wrapper">
+            <div id="hp-bar-ghost" class="bar-fill hp-ghost"></div>
             <div id="hp-bar-fill" class="bar-fill hp-fill"></div>
+            <span class="bar-icon-hint">❤️</span>
             <span id="hp-text" class="bar-label">300 / 300</span>
           </div>
           <!-- Mana Bar -->
           <div class="bar-wrapper mana-wrapper">
+            <div id="mana-bar-ghost" class="bar-fill mana-ghost"></div>
             <div id="mana-bar-fill" class="bar-fill mana-fill"></div>
+            <span class="bar-icon-hint">💧</span>
             <span id="mana-text" class="bar-label">120 / 120</span>
           </div>
         </div>
@@ -231,7 +238,9 @@
           <span class="boss-skull">💀</span>
         </div>
         <div class="bar-wrapper boss-bar-wrapper">
+          <div id="boss-bar-ghost" class="bar-fill boss-ghost"></div>
           <div id="boss-bar-fill" class="bar-fill boss-fill"></div>
+          <span id="boss-hp-text" class="bar-label boss-hp-label">0 / 0 (100%)</span>
         </div>
       </div>
     </div>

@@ -1552,6 +1552,43 @@ class Player {
       }
     }
 
+    // -------------------------------------------------------------
+    // Overhead Player Life Bar (Immediate Combat Awareness on Mobile)
+    // -------------------------------------------------------------
+    if (this.hp < this.maxHp && this.hp > 0) {
+      const pBarW = 38;
+      const pBarH = 5;
+      const pBarY = -this.radius - 18;
+      const pPct = Math.max(0, Math.min(1, this.hp / this.maxHp));
+
+      ctx.save();
+      // Background tray with rounded border
+      ctx.fillStyle = 'rgba(10, 15, 29, 0.88)';
+      ctx.beginPath();
+      ctx.roundRect(-pBarW / 2, pBarY, pBarW, pBarH, 2.5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Dynamic Color Fill: Emerald (>50%) -> Amber (25-50%) -> Crimson (<=25%)
+      const hpColor = pPct > 0.5 ? '#10b981' : (pPct > 0.25 ? '#f59e0b' : '#ef4444');
+      ctx.fillStyle = hpColor;
+      ctx.beginPath();
+      ctx.roundRect(-pBarW / 2, pBarY, pBarW * pPct, pBarH, 2.5);
+      ctx.fill();
+
+      // Pulsing Critical Aura if under 25% health
+      if (pPct <= 0.25) {
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#dc2626';
+        ctx.shadowBlur = 6;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 }
@@ -1929,20 +1966,20 @@ class Enemy {
 
     // Health bar & Elite Affix Name above head
     if (!this.isBoss && (this.hp < this.maxHp || this.isElite)) {
-      const barW = this.isElite ? 40 : 30;
-      const barH = 4.5;
+      const barW = this.isElite ? 44 : 34;
+      const barH = 5;
       const pct = Math.max(0, this.hp / this.maxHp);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fillStyle = 'rgba(10, 15, 29, 0.9)';
       ctx.beginPath();
-      ctx.roundRect(-barW / 2, -this.radius - 14, barW, barH, 2);
+      ctx.roundRect(-barW / 2, -this.radius - 14, barW, barH, 2.5);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.fillStyle = this.isElite ? '#f59e0b' : '#ef4444';
       ctx.beginPath();
-      ctx.roundRect(-barW / 2, -this.radius - 14, barW * pct, barH, 2);
+      ctx.roundRect(-barW / 2, -this.radius - 14, barW * pct, barH, 2.5);
       ctx.fill();
 
       if (this.isElite) {

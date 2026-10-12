@@ -10,8 +10,11 @@ class UIManager {
 
     // HUD Elements
     this.hpBarFill = document.getElementById('hp-bar-fill');
+    this.hpBarGhost = document.getElementById('hp-bar-ghost');
+    this.hpWrapper = document.querySelector('.hp-wrapper');
     this.hpText = document.getElementById('hp-text');
     this.manaBarFill = document.getElementById('mana-bar-fill');
+    this.manaBarGhost = document.getElementById('mana-bar-ghost');
     this.manaText = document.getElementById('mana-text');
     this.xpBarFill = document.getElementById('xp-bar-fill');
     this.levelBadge = document.getElementById('level-badge');
@@ -19,10 +22,13 @@ class UIManager {
     this.shardText = document.getElementById('shard-text');
     this.depthBadge = document.getElementById('depth-badge');
 
-    // Boss Bar
+    // Boss Bar & Low HP Vignette
     this.bossBarContainer = document.getElementById('boss-bar-container');
     this.bossBarFill = document.getElementById('boss-bar-fill');
+    this.bossBarGhost = document.getElementById('boss-bar-ghost');
+    this.bossHpText = document.getElementById('boss-hp-text');
     this.bossNameText = document.getElementById('boss-name-text');
+    this.lowHpVignette = document.getElementById('low-hp-vignette');
 
     // Action / Skill Buttons
     this.btnAttack = document.getElementById('btn-attack');
@@ -764,11 +770,33 @@ class UIManager {
     // Health Bar
     const hpPct = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
     this.hpBarFill.style.width = `${hpPct}%`;
+    if (this.hpBarGhost) {
+      this.hpBarGhost.style.width = `${hpPct}%`;
+    }
     this.hpText.textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+
+    // Critical HP status (alerts, pulsing borders & mobile indicators)
+    const isCriticalHp = hpPct <= 25 && player.hp > 0;
+    if (this.hpWrapper) {
+      this.hpWrapper.classList.toggle('critical-hp', isCriticalHp);
+    }
+    if (this.lowHpVignette) {
+      if (isCriticalHp) {
+        this.lowHpVignette.classList.remove('hidden');
+      } else {
+        this.lowHpVignette.classList.add('hidden');
+      }
+    }
+    if (this.btnPotionHp) {
+      this.btnPotionHp.classList.toggle('pulse-potion', isCriticalHp && player.healthPotions > 0);
+    }
 
     // Mana Bar
     const manaPct = Math.max(0, Math.min(100, (player.mana / player.maxMana) * 100));
     this.manaBarFill.style.width = `${manaPct}%`;
+    if (this.manaBarGhost) {
+      this.manaBarGhost.style.width = `${manaPct}%`;
+    }
     this.manaText.textContent = `${Math.ceil(player.mana)} / ${player.maxMana}`;
 
     // XP Bar
@@ -837,6 +865,12 @@ class UIManager {
       this.bossNameText.textContent = bossEnemy.name;
       const bPct = Math.max(0, (bossEnemy.hp / bossEnemy.maxHp) * 100);
       this.bossBarFill.style.width = `${bPct}%`;
+      if (this.bossBarGhost) {
+        this.bossBarGhost.style.width = `${bPct}%`;
+      }
+      if (this.bossHpText) {
+        this.bossHpText.textContent = `${Math.ceil(bossEnemy.hp)} / ${bossEnemy.maxHp} (${Math.round(bPct)}%)`;
+      }
     } else {
       this.bossBarContainer.classList.add('hidden');
     }
@@ -1528,6 +1562,7 @@ class UIManager {
   // GAME OVER & VICTORY
   // -------------------------------------------------------------
   showGameOver(stats) {
+    if (this.lowHpVignette) this.lowHpVignette.classList.add('hidden');
     if (this.gameOverScreen) {
       if (this.statsSummary) {
         const diffName = stats.difficulty || this.game.difficulty || 'NORMAL';
@@ -1547,6 +1582,7 @@ class UIManager {
   }
 
   showVictory(shardsEarned = 0, difficulty = 'NORMAL', hardcore = false) {
+    if (this.lowHpVignette) this.lowHpVignette.classList.add('hidden');
     if (this.victoryScreen) {
       if (this.victoryStatsSummary) {
         this.victoryStatsSummary.innerHTML = `
