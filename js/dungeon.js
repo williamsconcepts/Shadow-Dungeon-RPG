@@ -95,6 +95,26 @@ class Dungeon {
       }
     }
 
+    // Stone pillar obstacles inside rooms (skip start room). Placed BEFORE
+    // corridors so corridors carve through them and connectivity is preserved.
+    for (let i = 1; i < this.rooms.length; i++) {
+      const r = this.rooms[i];
+      if (r.w < 8 || r.h < 8) continue;
+      const qx = Math.max(2, Math.floor(r.w / 4));
+      const qy = Math.max(2, Math.floor(r.h / 4));
+      const spots = [
+        { x: r.x + qx, y: r.y + qy },
+        { x: r.x + r.w - 1 - qx, y: r.y + qy },
+        { x: r.x + qx, y: r.y + r.h - 1 - qy },
+        { x: r.x + r.w - 1 - qx, y: r.y + r.h - 1 - qy }
+      ];
+      const pillarChance = Math.min(0.85, 0.45 + this.floor * 0.08);
+      spots.forEach(p => {
+        if (p.x === r.cx || p.y === r.cy || Math.abs(p.x - r.cx) <= 1 && Math.abs(p.y - r.cy) <= 1) return;
+        if (Math.random() < pillarChance) this.tiles[p.y][p.x] = TILE.WALL;
+      });
+    }
+
     // Connect rooms via corridors
     for (let i = 1; i < this.rooms.length; i++) {
       const prev = this.rooms[i - 1];
@@ -181,9 +201,27 @@ class Dungeon {
         });
       }
 
+      // Extra scattered spike traps that scale with depth
+      if (!isShopRoom && i !== this.rooms.length - 1) {
+        const extraTraps = Math.floor(Math.random() * (1 + Math.min(3, Math.floor(this.floor / 2))));
+        for (let t = 0; t < extraTraps; t++) {
+          const tx = r.x + 2 + Math.floor(Math.random() * Math.max(1, r.w - 4));
+          const ty = r.y + 2 + Math.floor(Math.random() * Math.max(1, r.h - 4));
+          if (this.tiles[ty][tx] === TILE.FLOOR && (tx !== r.cx || ty !== r.cy)) {
+            this.traps.push({
+              x: (tx + 0.5) * this.tileSize,
+              y: (ty + 0.5) * this.tileSize,
+              size: 34,
+              state: 'IDLE',
+              timer: Math.random() * 2.5
+            });
+          }
+        }
+      }
+
       // Enemy spawns per room (skip shop room to keep merchant safe)
       if (!isShopRoom) {
-        const count = 2 + Math.floor(Math.random() * 3) + Math.floor(this.floor * 0.7);
+        const count = 3 + Math.floor(Math.random() * 3) + Math.floor(this.floor * 1.0);
         for (let j = 0; j < count; j++) {
           const ex = r.x + 1 + Math.floor(Math.random() * (r.w - 2));
           const ey = r.y + 1 + Math.floor(Math.random() * (r.h - 2));

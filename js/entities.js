@@ -2082,6 +2082,28 @@ class Enemy {
       this.color = '#ef4444';
       this.attackRange = 240;
       this.attackCd = 2.4;
+    } else if (type === 'BRUTE') {
+      this.name = 'Bone Brute';
+      this.radius = 22;
+      this.maxHp = Math.round(140 * (1 + floor * 0.32) * diff.hpMult);
+      this.speed = 70 * diff.speedMult;
+      this.atk = Math.round(24 * (1 + floor * 0.26) * diff.dmgMult);
+      this.xpValue = Math.round(90 * floor * diff.xpMult);
+      this.color = '#a16207';
+      this.attackRange = 40;
+      this.attackCd = 1.8;
+      this.chargeCd = 2.5 + Math.random() * 2;
+      this.chargeTimer = 0;
+    } else if (type === 'BAT') {
+      this.name = 'Shade Bat';
+      this.radius = 11;
+      this.maxHp = Math.round(18 * (1 + floor * 0.22) * diff.hpMult);
+      this.speed = (175 + Math.random() * 30) * diff.speedMult;
+      this.atk = Math.round(6 * (1 + floor * 0.2) * diff.dmgMult);
+      this.xpValue = Math.round(15 * floor * diff.xpMult);
+      this.color = '#6d28d9';
+      this.attackRange = 20;
+      this.attackCd = 0.8;
     } else if (type === 'BOSS') {
       this.name = 'Abyss Overlord';
       this.radius = 32;
@@ -2188,6 +2210,7 @@ class Enemy {
     if (this.type === 'SLIME') shardCount = Math.floor(1 + Math.random() * 2);
     else if (this.type === 'SKELETON') shardCount = Math.floor(2 + Math.random() * 2);
     else if (this.type === 'SORCERER') shardCount = Math.floor(4 + Math.random() * 3);
+    else if (this.type === 'BRUTE') shardCount = Math.floor(5 + Math.random() * 4);
     else if (this.isBoss) shardCount = Math.floor(40 + Math.random() * 25);
 
     shardCount = Math.max(1, Math.round(shardCount * (diff.shardMult || 1.0)));
@@ -2375,9 +2398,25 @@ class Enemy {
       }
     } else {
       // Melee enemies
+      let moveSpeed = curSpeed;
+      if (this.type === 'BRUTE') {
+        // Telegraphed bull-rush: brief wind-up, then a fast charge
+        this.chargeCd -= dt;
+        if (this.chargeTimer > 0) {
+          this.chargeTimer -= dt;
+          moveSpeed = curSpeed * 4.2;
+        } else if (this.chargeCd <= 0 && distToPlayer < 260 && distToPlayer > 60) {
+          this.chargeTimer = 0.55;
+          this.chargeCd = 3.5 + Math.random() * 1.5;
+          if (camera) camera.shake(4, 0.15);
+        }
+      } else if (this.type === 'BAT') {
+        // Erratic zig-zag flight
+        this.angle += Math.sin(this.bounceTimer * 3) * 0.6;
+      }
       if (distToPlayer > this.attackRange * 0.7) {
-        const stepX = this.x + Math.cos(this.angle) * curSpeed * dt;
-        const stepY = this.y + Math.sin(this.angle) * curSpeed * dt;
+        const stepX = this.x + Math.cos(this.angle) * moveSpeed * dt;
+        const stepY = this.y + Math.sin(this.angle) * moveSpeed * dt;
         if (!dungeon.checkCollision(stepX, this.y, this.radius)) this.x = stepX;
         if (!dungeon.checkCollision(this.x, stepY, this.radius)) this.y = stepY;
       }
@@ -2739,6 +2778,49 @@ class Enemy {
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.restore();
+    } else if (this.type === 'BRUTE') {
+      // Hulking bone brute with tusks; glows red while charging
+      const charging = this.chargeTimer > 0;
+      ctx.fillStyle = isHit ? '#ffffff' : (isSlow ? '#0369a1' : '#78350f');
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = charging ? '#ef4444' : '#fbbf24';
+      ctx.lineWidth = charging ? 4 : 2.5;
+      if (charging) { ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 14; }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#e7e5e4';
+      ctx.beginPath();
+      ctx.moveTo(this.radius - 4, -8); ctx.lineTo(this.radius + 10, -12); ctx.lineTo(this.radius - 2, -2);
+      ctx.moveTo(this.radius - 4, 8); ctx.lineTo(this.radius + 10, 12); ctx.lineTo(this.radius - 2, 2);
+      ctx.fill();
+      ctx.fillStyle = charging ? '#ef4444' : '#fde047';
+      ctx.beginPath();
+      ctx.arc(8, -6, 3, 0, Math.PI * 2);
+      ctx.arc(8, 6, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.type === 'BAT') {
+      // Shade bat with flapping wings
+      const flap = Math.sin(now / 60) * 0.5 + 0.5;
+      ctx.fillStyle = isHit ? '#ffffff' : (isSlow ? '#0369a1' : '#4c1d95');
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-6, -this.radius - 8 * flap);
+      ctx.lineTo(4, -4);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-6, this.radius + 8 * flap);
+      ctx.lineTo(4, 4);
+      ctx.fill();
+      ctx.fillStyle = isHit ? '#ffffff' : '#1e1b4b';
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(4, -2.5, 1.6, 0, Math.PI * 2);
+      ctx.arc(4, 2.5, 1.6, 0, Math.PI * 2);
+      ctx.fill();
     } else if (this.type === 'BOSS') {
       // -------------------------------------------------------------
       // ABYSS OVERLORD (Colossal Obsidian Volcanic Juggernaut, Molten Veins, Curved Demonic Horns)

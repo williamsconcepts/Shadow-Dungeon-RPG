@@ -884,14 +884,31 @@ class Game {
       // Spawn Boss
       this.bossEnemy = new window.Enemy(this.dungeon.bossSpawn.x, this.dungeon.bossSpawn.y, 'BOSS', floorNum, diffOpts);
       this.enemies.push(this.bossEnemy);
+      // Boss escort: brutes & cultists flanking the overlord
+      const escorts = 2 + Math.floor(floorNum / 3);
+      for (let i = 0; i < escorts; i++) {
+        const ox = (i % 2 === 0 ? -1 : 1) * (90 + 40 * Math.floor(i / 2));
+        const type = i % 2 === 0 ? 'BRUTE' : 'SORCERER';
+        this.enemies.push(new window.Enemy(this.dungeon.bossSpawn.x + ox, this.dungeon.bossSpawn.y + 60, type, floorNum, diffOpts));
+      }
     } else {
       // Spawn standard room mobs
       this.dungeon.enemySpawns.forEach(spawn => {
         const roll = Math.random();
         let type = 'SLIME';
-        if (roll > 0.65) type = 'SORCERER';
-        else if (roll > 0.3) type = 'SKELETON';
-        this.enemies.push(new window.Enemy(spawn.x, spawn.y, type, floorNum, diffOpts));
+        if (floorNum >= 2 && roll > 0.88) type = 'BRUTE';
+        else if (roll > 0.68) type = 'SORCERER';
+        else if (roll > 0.40) type = 'SKELETON';
+        else if (roll > 0.22) type = 'BAT';
+
+        if (type === 'BAT') {
+          // Bats swarm in packs of 3
+          for (let b = 0; b < 3; b++) {
+            this.enemies.push(new window.Enemy(spawn.x + (b - 1) * 8, spawn.y + (b % 2) * 6, 'BAT', floorNum, diffOpts));
+          }
+        } else {
+          this.enemies.push(new window.Enemy(spawn.x, spawn.y, type, floorNum, diffOpts));
+        }
       });
     }
 

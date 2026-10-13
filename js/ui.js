@@ -791,6 +791,8 @@ class UIManager {
         { key: 'SLIME', name: 'Abyssal Slime', icon: '🟢', desc: 'Ravenous amorphous ooze born from stagnant demonic bile. Slow but persistent.' },
         { key: 'SKELETON', name: 'Skeleton Warrior', icon: '💀', desc: 'Resurrected remain of fallen crusaders cursed to wander the endless depths.' },
         { key: 'SORCERER', name: 'Void Sorcerer', icon: '🧙‍♂️', desc: 'Corrupted chanters who cast seeking nether fireballs from distance.' },
+        { key: 'BAT', name: 'Shade Bat', icon: '🦇', desc: 'Fragile but lightning-fast swarmers that zig-zag in packs of three.' },
+        { key: 'BRUTE', name: 'Bone Brute', icon: '🐗', desc: 'Hulking tanks that glow red before a devastating bull-rush charge. Dodge sideways!' },
         { key: 'BOSS', name: 'Abyss Overlord', icon: '👹', desc: 'Ancient demonic entity commanding the deepest catacombs with cataclysmic strikes.' }
       ];
 

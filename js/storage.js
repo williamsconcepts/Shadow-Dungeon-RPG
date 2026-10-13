@@ -395,6 +395,8 @@ class StorageManager {
         SLIME: 0,
         SKELETON: 0,
         SORCERER: 0,
+        BAT: 0,
+        BRUTE: 0,
         BOSS: 0
       },
       discoveredItems: [] // list of unique item names discovered
